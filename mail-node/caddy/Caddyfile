@@ -1,0 +1,23 @@
+# ─── Caddyfile — Reverse proxy + TLS automático ───────────────────────────
+# 4nexa Mailgun — Mail Node
+# En desarrollo local se usa HTTP. En producción cambiar los dominios por FQDNs
+# y Caddy obtendrá TLS automáticamente via Let's Encrypt.
+
+# ─── Webmail ──────────────────────────────────────────────────────────────
+{$WEBMAIL_DOMAIN:webmail.localhost} {
+    reverse_proxy roundcube:80
+    encode gzip
+    log {
+        output stdout
+        level INFO
+    }
+}
+
+# ─── Node Agent API (solo acceso interno / VPN en producción) ────────────
+agent.{$MAILNODE_DOMAIN:localhost} {
+    reverse_proxy node-agent:3099
+    encode gzip
+}
+
+# ─── HTTP → HTTPS redirect (desactivado en localhost) ────────────────────
+# En producción Caddy gestiona esto automáticamente.

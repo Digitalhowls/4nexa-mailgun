@@ -1,0 +1,2 @@
+# dkim/ — claves privadas DKIM (generadas por node-agent)
+# Este directorio contiene archivos .key con permisos 600

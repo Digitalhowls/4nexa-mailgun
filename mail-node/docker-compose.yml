@@ -1,0 +1,205 @@
+# mail-node/docker-compose.yml
+# Infraestructura local del nodo de correo — Paso 12
+# Servicios: Postfix + Dovecot + Rspamd + Redis + Roundcube + Caddy + Node Agent
+
+networks:
+  mail-internal:
+    driver: bridge
+  mail-edge:
+    driver: bridge
+
+volumes:
+  mail-data:
+    driver: local
+  rspamd-data:
+    driver: local
+  redis-data:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local
+
+services:
+
+  # ── Redis (Rspamd Bayes + cuarentena) ─────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: mailnode-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    networks:
+      - mail-internal
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Rspamd (milter antispam + firma DKIM) ─────────────────────────────────
+  rspamd:
+    build:
+      context: ./rspamd
+      dockerfile: Dockerfile
+    image: 4nexa-rspamd:latest
+    container_name: mailnode-rspamd
+    restart: unless-stopped
+    hostname: rspamd
+    networks:
+      - mail-internal
+    volumes:
+      - rspamd-data:/var/lib/rspamd
+      - ./rspamd/local.d:/etc/rspamd/local.d:ro
+      - ./rspamd/override.d:/etc/rspamd/override.d:ro
+      - ./rspamd/dkim:/etc/rspamd/dkim
+    ports:
+      - "${RSPAMD_WEB_PORT:-11334}:11334"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "rspamc", "stat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ── Dovecot (IMAP + LMTP + Auth SASL) ────────────────────────────────────
+  dovecot:
+    build:
+      context: ./dovecot
+      dockerfile: Dockerfile
+    image: 4nexa-dovecot:latest
+    container_name: mailnode-dovecot
+    restart: unless-stopped
+    hostname: dovecot
+    networks:
+      - mail-internal
+    volumes:
+      - mail-data:/var/mail
+      - ./dovecot/dovecot.conf:/etc/dovecot/dovecot.conf:ro
+      - ./dovecot/conf.d:/etc/dovecot/conf.d:ro
+      - ./dovecot/users.conf:/etc/dovecot/users.conf
+    ports:
+      - "${IMAP_PORT:-143}:143"
+      - "${IMAPS_PORT:-993}:993"
+    healthcheck:
+      test: ["CMD", "doveadm", "service", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ── Postfix (SMTP entrante + saliente + Submission) ───────────────────────
+  postfix:
+    build:
+      context: ./postfix
+      dockerfile: Dockerfile
+    image: 4nexa-postfix:latest
+    container_name: mailnode-postfix
+    restart: unless-stopped
+    hostname: ${MAILNODE_HOSTNAME:-mail.example.local}
+    networks:
+      - mail-internal
+      - mail-edge
+    volumes:
+      - mail-data:/var/mail
+      - ./postfix/main.cf:/etc/postfix/main.cf:ro
+      - ./postfix/master.cf:/etc/postfix/master.cf:ro
+      - ./postfix/virtual:/etc/postfix/virtual
+      - ./postfix/sasl:/etc/postfix/sasl
+    ports:
+      - "${SMTP_PORT:-25}:25"
+      - "${SMTPS_PORT:-465}:465"
+      - "${SUBMISSION_PORT:-587}:587"
+    depends_on:
+      dovecot:
+        condition: service_healthy
+      rspamd:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "postfix", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ── Node Agent (gestión de configuración del nodo) ────────────────────────
+  node-agent:
+    build:
+      context: ../../services/node-agent
+      dockerfile: Dockerfile.dev
+    image: 4nexa-node-agent:dev
+    container_name: mailnode-node-agent
+    restart: unless-stopped
+    networks:
+      - mail-internal
+    volumes:
+      - ./postfix/virtual:/var/config/postfix/virtual
+      - ./postfix/sasl:/var/config/postfix/sasl
+      - ./dovecot/users.conf:/var/config/dovecot/users.conf
+      - ./rspamd/dkim:/var/config/rspamd/dkim
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      NODE_ENV: development
+      AGENT_MODE: docker
+      AGENT_PORT: 3099
+      AGENT_NODE_ID: ${AGENT_NODE_ID}
+      AGENT_JWT_SECRET: ${AGENT_JWT_SECRET}
+      AGENT_POSTFIX_VIRTUAL_DIR: /var/config/postfix/virtual
+      AGENT_DOVECOT_USERS_FILE: /var/config/dovecot/users.conf
+      AGENT_RSPAMD_DKIM_DIR: /var/config/rspamd/dkim
+      AGENT_DOCKER_POSTFIX_CONTAINER: mailnode-postfix
+      AGENT_DOCKER_DOVECOT_CONTAINER: mailnode-dovecot
+      AGENT_DOCKER_RSPAMD_CONTAINER: mailnode-rspamd
+      AGENT_DKIM_ENCRYPTION_KEY: ${AGENT_DKIM_ENCRYPTION_KEY}
+      LOG_LEVEL: debug
+    ports:
+      - "${AGENT_PORT:-3099}:3099"
+    depends_on:
+      postfix:
+        condition: service_healthy
+      dovecot:
+        condition: service_healthy
+      rspamd:
+        condition: service_healthy
+
+  # ── Roundcube (webmail) ───────────────────────────────────────────────────
+  roundcube:
+    image: roundcube/roundcubemail:1.6-apache
+    container_name: mailnode-roundcube
+    restart: unless-stopped
+    networks:
+      - mail-internal
+      - mail-edge
+    volumes:
+      - ./roundcube/config.inc.php:/var/roundcube/config/config.inc.php:ro
+    environment:
+      ROUNDCUBEMAIL_DEFAULT_HOST: dovecot
+      ROUNDCUBEMAIL_DEFAULT_PORT: "143"
+      ROUNDCUBEMAIL_SMTP_SERVER: postfix
+      ROUNDCUBEMAIL_SMTP_PORT: "587"
+      ROUNDCUBEMAIL_DB_TYPE: sqlite
+      ROUNDCUBEMAIL_DB_NAME: /var/roundcube/db/sqlite.db
+    depends_on:
+      dovecot:
+        condition: service_healthy
+
+  # ── Caddy (reverse proxy + TLS automático) ────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    container_name: mailnode-caddy
+    restart: unless-stopped
+    networks:
+      - mail-edge
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - roundcube

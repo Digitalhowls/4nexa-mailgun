@@ -1,0 +1,107 @@
+# ─── main.cf — Postfix configuración principal ────────────────────────────
+# 4nexa Mailgun — Mail Node
+# Los mapas virtual_* son gestionados por el Node Agent
+
+# ─── Sistema ──────────────────────────────────────────────────────────────
+smtpd_banner = $myhostname ESMTP
+biff = no
+append_dot_mydomain = no
+readme_directory = no
+compatibility_level = 3.6
+
+# ─── Identificación ───────────────────────────────────────────────────────
+# myhostname se toma del hostname del contenedor (MAILNODE_HOSTNAME)
+mydomain = $myhostname
+myorigin = $mydomain
+mydestination = localhost
+
+# ─── Red ──────────────────────────────────────────────────────────────────
+inet_interfaces = all
+inet_protocols = ipv4
+mynetworks = 127.0.0.0/8 172.16.0.0/12 10.0.0.0/8
+
+# ─── Virtual mailbox hosting ──────────────────────────────────────────────
+# Entrega a Dovecot via LMTP TCP (compatible con Docker sin socket compartido)
+virtual_transport = lmtp:inet:dovecot:24
+virtual_mailbox_base = /var/mail
+virtual_mailbox_domains = /etc/postfix/virtual/domains
+virtual_mailbox_maps = hash:/etc/postfix/virtual/mailboxes
+virtual_alias_maps = hash:/etc/postfix/virtual/aliases
+virtual_minimum_uid = 1000
+virtual_uid_maps = static:1000
+virtual_gid_maps = static:1000
+
+# ─── SASL Authentication (via Dovecot auth TCP) ───────────────────────────
+smtpd_sasl_type = dovecot
+smtpd_sasl_path = inet:dovecot:8994
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_security_options = noanonymous
+smtpd_sasl_local_domain = $myhostname
+broken_sasl_auth_clients = yes
+
+# ─── TLS ──────────────────────────────────────────────────────────────────
+smtpd_tls_cert_file = /etc/ssl/mailnode/cert.pem
+smtpd_tls_key_file  = /etc/ssl/mailnode/key.pem
+smtpd_tls_security_level = may
+smtpd_tls_auth_only = yes
+smtpd_tls_loglevel = 1
+smtpd_tls_session_cache_database = btree:${data_directory}/smtpd_scache
+smtpd_tls_protocols = !SSLv2, !SSLv3, !TLSv1, !TLSv1.1
+smtpd_tls_ciphers = high
+smtpd_tls_exclude_ciphers = aNULL
+
+smtp_tls_security_level = may
+smtp_tls_session_cache_database = btree:${data_directory}/smtp_scache
+smtp_tls_loglevel = 1
+
+# ─── Milter — Rspamd (firma DKIM + antispam) ──────────────────────────────
+smtpd_milters     = inet:rspamd:11332
+non_smtpd_milters = $smtpd_milters
+milter_default_action = accept
+milter_protocol = 6
+
+# ─── Restricciones SMTP ───────────────────────────────────────────────────
+smtpd_helo_required = yes
+smtpd_helo_restrictions =
+    permit_mynetworks,
+    reject_invalid_helo_hostname,
+    permit
+
+smtpd_sender_restrictions =
+    permit_sasl_authenticated,
+    permit_mynetworks,
+    reject_non_fqdn_sender,
+    permit
+
+smtpd_recipient_restrictions =
+    permit_sasl_authenticated,
+    permit_mynetworks,
+    reject_unauth_destination,
+    reject_unknown_recipient_domain
+
+smtpd_relay_restrictions =
+    permit_sasl_authenticated,
+    permit_mynetworks,
+    reject_unauth_destination
+
+# ─── Rate limiting (configurados por Config Engine) ───────────────────────
+smtpd_client_message_rate_limit = 100
+smtpd_client_recipient_rate_limit = 200
+smtpd_client_connection_rate_limit = 50
+
+# ─── Cola y reintentos ────────────────────────────────────────────────────
+maximal_queue_lifetime = 5d
+bounce_queue_lifetime = 1d
+queue_run_delay = 300s
+minimal_backoff_time = 300s
+maximal_backoff_time = 4000s
+smtp_connection_timeout = 30s
+
+# ─── Seguridad anti-relay ─────────────────────────────────────────────────
+disable_vrfy_command = yes
+smtpd_discard_ehlo_keywords = silent-discard, dsn
+strict_rfc821_envelopes = yes
+
+# ─── Tamaño máximo de mensaje (100 MB) ───────────────────────────────────
+message_size_limit = 104857600
+mailbox_size_limit = 0
