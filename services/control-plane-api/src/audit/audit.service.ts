@@ -154,41 +154,52 @@ export class AuditService {
   }
 
   async verifyRange(startDate: Date, endDate: Date): Promise<VerifyRangeResult> {
-    const logs = await this.prisma.auditLog.findMany({
-      where: { createdAt: { gte: startDate, lte: endDate } },
-      orderBy: { createdAt: 'asc' },
-    });
-
     let verified = 0;
     let failed = 0;
     let legacy = 0;
     const failedIds: string[] = [];
+    let total = 0;
+    const batchSize = 1000;
+    let cursor: string | undefined;
 
-    for (const log of logs) {
-      if (!log.hmac) {
-        legacy++;
-        continue;
-      }
+    while (true) {
+      const logs = await this.prisma.auditLog.findMany({
+        where: { createdAt: { gte: startDate, lte: endDate } },
+        orderBy: { createdAt: 'asc' },
+        take: batchSize,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      });
 
-      const expected = this.computeHmac(
-        log.id,
-        log.action,
-        log.entityType,
-        log.entityId,
-        log.tenantId,
-        log.userId,
-        log.createdAt,
-      );
+      if (logs.length === 0) break;
+      total += logs.length;
+      cursor = logs[logs.length - 1]!.id;
 
-      if (expected === log.hmac) {
-        verified++;
-      } else {
-        failed++;
-        failedIds.push(log.id);
+      for (const log of logs) {
+        if (!log.hmac) {
+          legacy++;
+          continue;
+        }
+
+        const expected = this.computeHmac(
+          log.id,
+          log.action,
+          log.entityType,
+          log.entityId,
+          log.tenantId,
+          log.userId,
+          log.createdAt,
+        );
+
+        if (expected === log.hmac) {
+          verified++;
+        } else {
+          failed++;
+          failedIds.push(log.id);
+        }
       }
     }
 
-    return { total: logs.length, verified, failed, legacy, failedIds };
+    return { total, verified, failed, legacy, failedIds };
   }
 
   // ─── HMAC privado ─────────────────────────────────────────────────────────────

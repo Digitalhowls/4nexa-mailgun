@@ -58,17 +58,17 @@ function makeService(prismaOverride = makePrisma()) {
 // ─── generateDkimKeyPair() ────────────────────────────────────────────────────
 
 describe('generateDkimKeyPair()', () => {
-  it('devuelve publicKeyBase64 y encryptedPrivateKey no vacíos', () => {
+  it('devuelve publicKeyBase64 y encryptedPrivateKey no vacíos', async () => {
     const svc = makeService();
-    const result = svc.generateDkimKeyPair();
+    const result = await svc.generateDkimKeyPair();
     expect(result.publicKeyBase64.length).toBeGreaterThan(100);
     expect(result.encryptedPrivateKey).toMatch(/^[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/);
   });
 
-  it('cada llamada genera claves distintas', () => {
+  it('cada llamada genera claves distintas', async () => {
     const svc = makeService();
-    const a = svc.generateDkimKeyPair();
-    const b = svc.generateDkimKeyPair();
+    const a = await svc.generateDkimKeyPair();
+    const b = await svc.generateDkimKeyPair();
     expect(a.publicKeyBase64).not.toBe(b.publicKeyBase64);
     expect(a.encryptedPrivateKey).not.toBe(b.encryptedPrivateKey);
   });

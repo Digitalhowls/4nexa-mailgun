@@ -5,7 +5,6 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as forge from 'node-forge';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { DnsCheckerService } from './dns-checker.service';
@@ -32,7 +31,7 @@ export class DomainsService {
     }
 
     // Generar par de claves DKIM
-    const { publicKey, encryptedPrivateKey } = this.generateDkimKeyPair();
+    const { publicKey, encryptedPrivateKey } = await this.generateDkimKeyPair();
 
     const domain = await this.prisma.domain.create({
       data: {
@@ -250,17 +249,26 @@ export class DomainsService {
 
   // ── Helpers privados ───────────────────────────────────────────────────────
 
-  private generateDkimKeyPair(): { publicKey: string; encryptedPrivateKey: string } {
-    const { privateKey, publicKey } = forge.pki.rsa.generateKeyPair(2048);
+  private async generateDkimKeyPair(): Promise<{ publicKey: string; encryptedPrivateKey: string }> {
+    const { privateKey: privateKeyPem, publicKey: publicKeyPem } = await new Promise<{ privateKey: string; publicKey: string }>((resolve, reject) => {
+      crypto.generateKeyPair(
+        'rsa',
+        {
+          modulusLength: 2048,
+          publicKeyEncoding: { type: 'spki', format: 'pem' },
+          privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+        },
+        (err, publicKey, privateKey) => {
+          if (err) reject(err);
+          else resolve({ publicKey, privateKey });
+        },
+      );
+    });
 
-    const publicKeyPem = forge.pki.publicKeyToPem(publicKey);
-    // Extraer solo la parte base64 del certificado DER para el registro DNS
     const publicKeyBase64 = publicKeyPem
       .replace('-----BEGIN PUBLIC KEY-----', '')
       .replace('-----END PUBLIC KEY-----', '')
       .replace(/\n/g, '');
-
-    const privateKeyPem = forge.pki.privateKeyToPem(privateKey);
 
     // Cifrar la clave privada con AES-256-GCM usando la DKIM_ENCRYPTION_KEY del entorno
     const encryptionKey = this.config.get('DKIM_ENCRYPTION_KEY');

@@ -4,7 +4,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { DnsOrchestrationService, CreateDnsProviderDto } from './dns-orchestration.service';
-import type { AuthTokenPayload } from '@4nexa/types';
+import { UserRole, type AuthTokenPayload } from '@4nexa/types';
 
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -12,7 +12,7 @@ export class DnsOrchestrationController {
   constructor(private readonly dnsService: DnsOrchestrationService) {}
 
   @Post('dns-providers')
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER', 'TENANT_ADMIN')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER, UserRole.TENANT_ADMIN)
   async createProvider(@Body() dto: CreateDnsProviderDto, @CurrentUser() user: AuthTokenPayload) {
     const tenantId = user.tenantId ?? '';
     const data = await this.dnsService.createProvider(tenantId, dto, user.sub);
@@ -20,7 +20,7 @@ export class DnsOrchestrationController {
   }
 
   @Get('dns-providers')
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER', 'TENANT_ADMIN')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER, UserRole.TENANT_ADMIN)
   async listProviders(@CurrentUser() user: AuthTokenPayload) {
     const tenantId = user.tenantId ?? '';
     const data = await this.dnsService.listProviders(tenantId);
@@ -28,7 +28,7 @@ export class DnsOrchestrationController {
   }
 
   @Delete('dns-providers/:id')
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER', 'TENANT_ADMIN')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER, UserRole.TENANT_ADMIN)
   @HttpCode(HttpStatus.OK)
   async deleteProvider(@Param('id') id: string, @CurrentUser() user: AuthTokenPayload) {
     const tenantId = user.tenantId ?? '';
@@ -37,7 +37,7 @@ export class DnsOrchestrationController {
   }
 
   @Post('domains/:id/dns/provision')
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER', 'TENANT_ADMIN')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER, UserRole.TENANT_ADMIN)
   async provisionDomain(@Param('id') id: string, @CurrentUser() user: AuthTokenPayload) {
     const tenantId = user.tenantId ?? '';
     const data = await this.dnsService.provisionDomain(id, tenantId, user.sub);
@@ -45,7 +45,7 @@ export class DnsOrchestrationController {
   }
 
   @Post('domains/:id/dns/verify')
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER', 'TENANT_ADMIN')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER, UserRole.TENANT_ADMIN)
   async verifyDomain(@Param('id') id: string, @CurrentUser() user: AuthTokenPayload) {
     const tenantId = user.tenantId ?? '';
     const data = await this.dnsService.verifyDomain(id, tenantId);
@@ -53,7 +53,7 @@ export class DnsOrchestrationController {
   }
 
   @Get('domains/:id/dns/status')
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER', 'TENANT_ADMIN')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER, UserRole.TENANT_ADMIN)
   async getDnsStatus(@Param('id') id: string, @CurrentUser() user: AuthTokenPayload) {
     const tenantId = user.tenantId ?? '';
     const data = await this.dnsService.getDnsStatus(id, tenantId);

@@ -15,7 +15,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ApiKeysService, CreateApiKeyDto } from './api-keys.service';
-import type { AuthTokenPayload } from '@4nexa/types';
+import { UserRole, type AuthTokenPayload } from '@4nexa/types';
 import type { ApiKeyScope } from '@prisma/client';
 
 @Controller('api-keys')
@@ -24,7 +24,7 @@ export class ApiKeysController {
   constructor(private readonly apiKeysService: ApiKeysService) {}
 
   @Post()
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER', 'TENANT_ADMIN')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER, UserRole.TENANT_ADMIN)
   async create(
     @Body() body: { name: string; scopes: ApiKeyScope[]; rateLimit?: number; expiresAt?: string },
     @CurrentUser() user: AuthTokenPayload,
@@ -41,7 +41,7 @@ export class ApiKeysController {
   }
 
   @Get()
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER', 'TENANT_ADMIN')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER, UserRole.TENANT_ADMIN)
   async list(@CurrentUser() user: AuthTokenPayload) {
     const tenantId = user.tenantId ?? '';
     const data = await this.apiKeysService.list(tenantId);
@@ -49,7 +49,7 @@ export class ApiKeysController {
   }
 
   @Delete(':id')
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER', 'TENANT_ADMIN')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER, UserRole.TENANT_ADMIN)
   @HttpCode(HttpStatus.OK)
   async revoke(@Param('id') id: string, @CurrentUser() user: AuthTokenPayload) {
     const tenantId = user.tenantId ?? '';
@@ -58,7 +58,7 @@ export class ApiKeysController {
   }
 
   @Patch(':id/rotate')
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER', 'TENANT_ADMIN')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER, UserRole.TENANT_ADMIN)
   async rotate(@Param('id') id: string, @CurrentUser() user: AuthTokenPayload) {
     const tenantId = user.tenantId ?? '';
     const result = await this.apiKeysService.rotate(id, tenantId, user.sub);

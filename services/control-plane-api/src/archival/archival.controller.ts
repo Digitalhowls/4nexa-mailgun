@@ -4,7 +4,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ArchivalService, SetArchivalPolicyDto } from './archival.service';
-import type { AuthTokenPayload } from '@4nexa/types';
+import { UserRole, type AuthTokenPayload } from '@4nexa/types';
 
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -12,7 +12,7 @@ export class ArchivalController {
   constructor(private readonly archivalService: ArchivalService) {}
 
   @Post('archival/policy')
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER', 'TENANT_ADMIN')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER, UserRole.TENANT_ADMIN)
   async setPolicy(@Body() dto: SetArchivalPolicyDto, @CurrentUser() user: AuthTokenPayload) {
     const tenantId = user.tenantId ?? '';
     const data = await this.archivalService.setPolicy(tenantId, dto, user.sub);
@@ -20,14 +20,14 @@ export class ArchivalController {
   }
 
   @Get('archival/policy')
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER', 'TENANT_ADMIN')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER, UserRole.TENANT_ADMIN)
   async getPolicy(@CurrentUser() user: AuthTokenPayload) {
     const data = await this.archivalService.getPolicy(user.tenantId ?? '');
     return { success: true, data };
   }
 
   @Post('archival/legal-holds')
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER)
   async createLegalHold(
     @Body() body: { mailboxId: string; reason: string },
     @CurrentUser() user: AuthTokenPayload,
@@ -38,14 +38,14 @@ export class ArchivalController {
   }
 
   @Get('archival/legal-holds')
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER)
   async listLegalHolds(@CurrentUser() user: AuthTokenPayload) {
     const data = await this.archivalService.listLegalHolds(user.tenantId ?? '');
     return { success: true, data };
   }
 
   @Delete('archival/legal-holds/:id')
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER)
   @HttpCode(HttpStatus.OK)
   async releaseLegalHold(@Param('id') id: string, @CurrentUser() user: AuthTokenPayload) {
     await this.archivalService.releaseLegalHold(id, user.tenantId ?? '', user.sub);
@@ -53,14 +53,14 @@ export class ArchivalController {
   }
 
   @Post('archival/gdpr/export')
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER)
   async gdprExport(@Body() body: { mailboxId: string }, @CurrentUser() user: AuthTokenPayload) {
     const data = await this.archivalService.gdprExport(body.mailboxId, user.tenantId ?? '', user.sub);
     return { success: true, data };
   }
 
   @Post('archival/gdpr/forget')
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER)
   async gdprForget(@Body() body: { mailboxId: string }, @CurrentUser() user: AuthTokenPayload) {
     await this.archivalService.gdprForget(body.mailboxId, user.tenantId ?? '', user.sub);
     return { success: true, data: null };

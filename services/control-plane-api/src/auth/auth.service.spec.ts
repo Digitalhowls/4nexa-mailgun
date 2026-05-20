@@ -1,4 +1,4 @@
-import { UnauthorizedException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { UnauthorizedException, ForbiddenException, ConflictException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
@@ -21,6 +21,12 @@ function makePrisma(overrides: Partial<Record<string, jest.Mock>> = {}): PrismaS
       findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+    },
+    refreshToken: {
+      create: jest.fn().mockResolvedValue({}),
+      findUnique: jest.fn(),
+      update: jest.fn().mockResolvedValue({}),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     auditLog: {
       create: jest.fn().mockResolvedValue({}),
@@ -136,6 +142,249 @@ describe('AuthService', () => {
           role: UserRole.TENANT_OWNER,
         }),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('crea y devuelve el usuario correctamente', async () => {
+      const { authService, prisma } = makeDeps();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.user.create as jest.Mock).mockResolvedValue({ id: 'new-id', email: 'new@x.com' });
+
+      const result = await authService.register({
+        email: 'new@x.com',
+        password: 'Password1!',
+        role: UserRole.TENANT_OWNER,
+      });
+
+      expect(result).toEqual({ id: 'new-id', email: 'new@x.com' });
+    });
+  });
+
+  // ─── login() éxito ────────────────────────────────────────────────────────
+
+  describe('login() — éxito', () => {
+    it('devuelve tokens si las credenciales son correctas', async () => {
+      const argon2Mock = jest.requireMock<{ verify: jest.Mock }>('argon2');
+      argon2Mock.verify.mockResolvedValueOnce(true);
+
+      const { authService, prisma } = makeDeps();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: 'u1',
+        email: 'user@test.com',
+        status: 'ACTIVE',
+        lockedUntil: null,
+        failedLoginAttempts: 0,
+        totpEnabled: false,
+        passwordHash: '$argon2id$hash',
+        role: 'TENANT_OWNER',
+        tenantId: 't1',
+      });
+      (prisma.user.update as jest.Mock).mockResolvedValue({});
+
+      const result = await authService.login({ email: 'user@test.com', password: 'pass' });
+      expect(result).toHaveProperty('accessToken');
+      expect(result).toHaveProperty('refreshToken');
+      expect(result.expiresIn).toBe(900);
+    });
+
+    it('lanza UnauthorizedException si el código TOTP está ausente', async () => {
+      const argon2Mock = jest.requireMock<{ verify: jest.Mock }>('argon2');
+      argon2Mock.verify.mockResolvedValueOnce(true);
+
+      const { authService, prisma } = makeDeps();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: 'u1',
+        email: 'user@test.com',
+        status: 'ACTIVE',
+        lockedUntil: null,
+        failedLoginAttempts: 0,
+        totpEnabled: true,
+        totpSecret: 'BASE32SECRET',
+        passwordHash: '$argon2id$hash',
+        role: 'TENANT_OWNER',
+        tenantId: null,
+      });
+      (prisma.user.update as jest.Mock).mockResolvedValue({});
+
+      await expect(
+        authService.login({ email: 'user@test.com', password: 'pass' }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  // ─── logout() ────────────────────────────────────────────────────────────
+
+  describe('logout()', () => {
+    it('revoca el refresh token del jti indicado', async () => {
+      const { authService, prisma } = makeDeps();
+      await authService.logout('jti-1234');
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { jti: 'jti-1234', revokedAt: null },
+        data: { revokedAt: expect.any(Date) },
+      });
+    });
+  });
+
+  // ─── getMe() ─────────────────────────────────────────────────────────────
+
+  describe('getMe()', () => {
+    it('devuelve los datos del usuario', async () => {
+      const { authService, prisma } = makeDeps();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: 'u1',
+        email: 'u@x.com',
+        role: 'TENANT_OWNER',
+        tenantId: 't1',
+      });
+
+      const result = await authService.getMe('u1');
+      expect(result).toMatchObject({ id: 'u1', email: 'u@x.com' });
+    });
+
+    it('lanza NotFoundException si no existe el usuario', async () => {
+      const { authService, prisma } = makeDeps();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(authService.getMe('unknown')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ─── changePassword() ────────────────────────────────────────────────────
+
+  describe('changePassword()', () => {
+    it('lanza NotFoundException si no existe el usuario', async () => {
+      const { authService, prisma } = makeDeps();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(authService.changePassword('u1', 'old', 'new')).rejects.toThrow(NotFoundException);
+    });
+
+    it('lanza UnauthorizedException si la contraseña actual es incorrecta', async () => {
+      const { authService, prisma } = makeDeps();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: 'u1',
+        passwordHash: '$argon2id$hash',
+      });
+      // argon2.verify sigue mockeado a false por defecto
+
+      await expect(authService.changePassword('u1', 'wrongOld', 'newPass')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('actualiza la contraseña cuando es correcta', async () => {
+      const argon2Mock = jest.requireMock<{ verify: jest.Mock }>('argon2');
+      argon2Mock.verify.mockResolvedValueOnce(true);
+
+      const { authService, prisma } = makeDeps();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: 'u1',
+        passwordHash: '$argon2id$hash',
+      });
+      (prisma.user.update as jest.Mock).mockResolvedValue({});
+
+      await expect(authService.changePassword('u1', 'correctOld', 'newPass')).resolves.not.toThrow();
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'u1' } }),
+      );
+    });
+  });
+
+  // ─── refreshTokens() ─────────────────────────────────────────────────────
+
+  describe('refreshTokens()', () => {
+    it('lanza UnauthorizedException si el token JWT es inválido', async () => {
+      const { authService } = makeDeps();
+      await expect(authService.refreshTokens('invalid-jwt')).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('lanza UnauthorizedException si el token está revocado', async () => {
+      const payload = {
+        sub: 'u1',
+        email: 'u@x.com',
+        role: 'TENANT_OWNER',
+        tenantId: null,
+        jti: 'jti-abc',
+        iat: 1,
+        exp: 9999999999,
+      };
+      const { authService, prisma, jwtService } = makeDeps();
+      (jwtService as any).verify = jest.fn().mockReturnValue(payload);
+      (prisma.refreshToken.findUnique as jest.Mock).mockResolvedValue({
+        id: 'rt1',
+        revokedAt: new Date(),
+        expiresAt: new Date(Date.now() + 86400000),
+        user: { id: 'u1', email: 'u@x.com', role: 'TENANT_OWNER', tenantId: null },
+      });
+
+      await expect(authService.refreshTokens('valid-token')).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('lanza UnauthorizedException si el token no se encuentra', async () => {
+      const payload = {
+        sub: 'u1', email: 'u@x.com', role: 'TENANT_OWNER', tenantId: null,
+        jti: 'jti-notfound', iat: 1, exp: 9999999999,
+      };
+      const { authService, prisma, jwtService } = makeDeps();
+      (jwtService as any).verify = jest.fn().mockReturnValue(payload);
+      (prisma.refreshToken.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(authService.refreshTokens('valid-token')).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('devuelve nuevos tokens en rotación exitosa', async () => {
+      const payload = {
+        sub: 'u1', email: 'u@x.com', role: 'TENANT_OWNER', tenantId: null,
+        jti: 'jti-ok', iat: 1, exp: 9999999999,
+      };
+      const { authService, prisma, jwtService } = makeDeps();
+      (jwtService as any).verify = jest.fn().mockReturnValue(payload);
+      (prisma.refreshToken.findUnique as jest.Mock).mockResolvedValue({
+        id: 'rt1',
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 86400000),
+        user: { id: 'u1', email: 'u@x.com', role: 'TENANT_OWNER', tenantId: null },
+      });
+
+      const result = await authService.refreshTokens('valid-token');
+      expect(result).toHaveProperty('accessToken');
+    });
+  });
+
+  // ─── TOTP ─────────────────────────────────────────────────────────────────
+
+  describe('generateTotpSecret()', () => {
+    it('devuelve un secreto y URI válidos', () => {
+      const { authService } = makeDeps();
+      const result = authService.generateTotpSecret();
+      expect(result).toHaveProperty('secret');
+      expect(result).toHaveProperty('uri');
+      expect(result.uri).toContain('otpauth://totp/');
+    });
+  });
+
+  describe('enableTotp()', () => {
+    it('lanza UnauthorizedException si el código TOTP es inválido', async () => {
+      const { authService, prisma } = makeDeps();
+      (prisma.user.update as jest.Mock).mockResolvedValue({});
+      // Base32 válido pero código incorrecto → verifyTotp devuelve false
+      const { secret } = authService.generateTotpSecret();
+
+      await expect(authService.enableTotp('u1', secret, '000000')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+  });
+
+  describe('disableTotp()', () => {
+    it('deshabilita TOTP del usuario', async () => {
+      const { authService, prisma } = makeDeps();
+      (prisma.user.update as jest.Mock).mockResolvedValue({});
+
+      await authService.disableTotp('u1');
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'u1' },
+        data: { totpSecret: null, totpEnabled: false },
+      });
     });
   });
 });

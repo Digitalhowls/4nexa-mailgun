@@ -178,10 +178,12 @@ describe('verifyRange()', () => {
     const { service: svc2 } = makeService({
       auditLog: {
         ...makePrisma().auditLog,
-        findMany: jest.fn().mockResolvedValue([
-          { id: id1, action: 'user.login',    entityType: null, entityId: null, tenantId: null, userId: null, createdAt, hmac: hmac1 },
-          { id: id2, action: 'node.assigned', entityType: null, entityId: null, tenantId: null, userId: null, createdAt, hmac: hmac2 },
-        ]),
+        findMany: jest.fn()
+          .mockResolvedValueOnce([
+            { id: id1, action: 'user.login',    entityType: null, entityId: null, tenantId: null, userId: null, createdAt, hmac: hmac1 },
+            { id: id2, action: 'node.assigned', entityType: null, entityId: null, tenantId: null, userId: null, createdAt, hmac: hmac2 },
+          ])
+          .mockResolvedValueOnce([]),
       },
     });
 
@@ -204,10 +206,12 @@ describe('verifyRange()', () => {
     const { service: svc2 } = makeService({
       auditLog: {
         ...makePrisma().auditLog,
-        findMany: jest.fn().mockResolvedValue([
-          { id: id1, action: 'user.login', entityType: null, entityId: null, tenantId: null, userId: null, createdAt, hmac: hmac1 },
-          { id: 'legacy-id', action: 'old.action', entityType: null, entityId: null, tenantId: null, userId: null, createdAt, hmac: '' },
-        ]),
+        findMany: jest.fn()
+          .mockResolvedValueOnce([
+            { id: id1, action: 'user.login', entityType: null, entityId: null, tenantId: null, userId: null, createdAt, hmac: hmac1 },
+            { id: 'legacy-id', action: 'old.action', entityType: null, entityId: null, tenantId: null, userId: null, createdAt, hmac: '' },
+          ])
+          .mockResolvedValueOnce([]),
       },
     });
 
@@ -227,9 +231,11 @@ describe('verifyRange()', () => {
     const { service: svc2 } = makeService({
       auditLog: {
         ...makePrisma().auditLog,
-        findMany: jest.fn().mockResolvedValue([
-          { id, action: 'user.login', entityType: null, entityId: null, tenantId: null, userId: null, createdAt, hmac: wrongHmac },
-        ]),
+        findMany: jest.fn()
+          .mockResolvedValueOnce([
+            { id, action: 'user.login', entityType: null, entityId: null, tenantId: null, userId: null, createdAt, hmac: wrongHmac },
+          ])
+          .mockResolvedValueOnce([]),
       },
     });
 

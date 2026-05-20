@@ -32,6 +32,18 @@ export class AuthService {
   ): Promise<AuthTokens> {
     const user = await this.prisma.user.findUnique({
       where: { email: input.email },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+        totpEnabled: true,
+        totpSecret: true,
+        status: true,
+        lockedUntil: true,
+        failedLoginAttempts: true,
+        role: true,
+        tenantId: true,
+      },
     });
 
     if (!user) {

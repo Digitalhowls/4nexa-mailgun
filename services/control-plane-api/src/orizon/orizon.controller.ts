@@ -4,7 +4,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { OrizonService } from './orizon.service';
-import type { AuthTokenPayload } from '@4nexa/types';
+import { UserRole, type AuthTokenPayload } from '@4nexa/types';
 
 @Controller('orizon')
 export class OrizonController {
@@ -12,7 +12,7 @@ export class OrizonController {
 
   @Post('sync')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN', 'TENANT_OWNER')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER)
   async syncTenant(@CurrentUser() user: AuthTokenPayload) {
     const data = await this.orizonService.syncTenant(user.tenantId ?? '', user.sub);
     return { success: true, data };

@@ -310,12 +310,17 @@ export class NodeAssignmentService {
     let migratedDomains = 0;
     let failedMigrations = 0;
 
+    // Resolver el nodo destino una sola vez (evita N+1 contra findBestNode)
+    // Solo consultar si hay algo que migrar
+    const needsBestNode = !input.targetNodeId && (tenants.length > 0 || domains.length > 0);
+    const preResolvedTarget = input.targetNodeId
+      ? { nodeId: input.targetNodeId }
+      : needsBestNode ? await this.findBestNode({}) : null;
+
     // Migrar tenants
     for (const tenant of tenants) {
       try {
-        const target = input.targetNodeId
-          ? { nodeId: input.targetNodeId }
-          : await this.findBestNode({});
+        const target = preResolvedTarget;
 
         if (!target) {
           failedMigrations++;
@@ -333,9 +338,7 @@ export class NodeAssignmentService {
     // Migrar dominios
     for (const domain of domains) {
       try {
-        const target = input.targetNodeId
-          ? { nodeId: input.targetNodeId }
-          : await this.findBestNode({});
+        const target = preResolvedTarget;
 
         if (!target) {
           failedMigrations++;

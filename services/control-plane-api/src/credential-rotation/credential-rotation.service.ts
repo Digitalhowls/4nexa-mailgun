@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as forge from 'node-forge';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventBusService } from '../event-bus/event-bus.service';
@@ -40,7 +39,7 @@ export class CredentialRotationService {
     }
 
     // Generar nuevo par RSA-2048
-    const { publicKeyBase64, encryptedPrivateKey } = this.generateDkimKeyPair();
+    const { publicKeyBase64, encryptedPrivateKey } = await this.generateDkimKeyPair();
 
     // Selector: usar el proporcionado o autogenerar
     const newSelector = input.newSelector ?? `4nexa-${Date.now()}`;
@@ -124,22 +123,34 @@ export class CredentialRotationService {
 
   // ── Helper: generar par DKIM (mismo algoritmo que DomainsService) ───────────
 
-  generateDkimKeyPair(): { publicKeyBase64: string; encryptedPrivateKey: string } {
-    const { privateKey, publicKey } = forge.pki.rsa.generateKeyPair(2048);
+  async generateDkimKeyPair(): Promise<{ publicKeyBase64: string; encryptedPrivateKey: string }> {
+    const { privateKey: privateKeyPem, publicKey: publicKeyPem } = await new Promise<{ privateKey: string; publicKey: string }>((resolve, reject) => {
+      crypto.generateKeyPair(
+        'rsa',
+        {
+          modulusLength: 2048,
+          publicKeyEncoding: { type: 'spki', format: 'pem' },
+          privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+        },
+        (err, publicKey, privateKey) => {
+          if (err) reject(err);
+          else resolve({ publicKey, privateKey });
+        },
+      );
+    });
 
-    const publicKeyPem = forge.pki.publicKeyToPem(publicKey);
     const publicKeyBase64 = publicKeyPem
       .replace('-----BEGIN PUBLIC KEY-----', '')
       .replace('-----END PUBLIC KEY-----', '')
       .replace(/\n/g, '');
 
-    const privateKeyPem = forge.pki.privateKeyToPem(privateKey);
+    const privateKeyPem2 = privateKeyPem;
 
     const encryptionKey = this.config.get('DKIM_ENCRYPTION_KEY', { infer: true });
     const key = crypto.createHash('sha256').update(encryptionKey).digest();
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-    let encrypted = cipher.update(privateKeyPem, 'utf8', 'hex');
+    let encrypted = cipher.update(privateKeyPem2, 'utf8', 'hex');
     encrypted += cipher.final('hex');
     const authTag = cipher.getAuthTag().toString('hex');
 
