@@ -132,7 +132,7 @@ export default function AuditPage() {
             </div>
             <div className="space-y-1">
               <Label>Tenant ID</Label>
-              <Input placeholder="uuid" {...filterForm.register('tenantId')} />
+              <Input placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" className="font-mono text-sm" {...filterForm.register('tenantId')} />
             </div>
             <div className="space-y-1">
               <Label>Desde</Label>

@@ -329,14 +329,14 @@ export default function DisasterRecoveryPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <Label>Node ID (opcional)</Label>
-                <Input placeholder="uuid" {...simulateForm.register('nodeId')} />
+                <Input placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" className="font-mono text-sm" {...simulateForm.register('nodeId')} />
                 {simulateForm.formState.errors.nodeId && (
                   <p className="text-xs text-destructive">{simulateForm.formState.errors.nodeId.message}</p>
                 )}
               </div>
               <div className="space-y-1">
                 <Label>Tenant ID (opcional)</Label>
-                <Input placeholder="uuid" {...simulateForm.register('tenantId')} />
+                <Input placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" className="font-mono text-sm" {...simulateForm.register('tenantId')} />
                 {simulateForm.formState.errors.tenantId && (
                   <p className="text-xs text-destructive">{simulateForm.formState.errors.tenantId.message}</p>
                 )}

@@ -308,18 +308,18 @@ export default function TenantsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Nombre</Label>
-                <Input {...register('name')} placeholder="Acme Corp" />
+                <Input {...register('name')} placeholder="Mi Empresa S.L." />
                 {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
               </div>
               <div className="space-y-2">
                 <Label>Slug</Label>
-                <Input {...register('slug')} placeholder="acme-corp" />
+                <Input {...register('slug')} placeholder="mi-empresa" />
                 {errors.slug && <p className="text-xs text-destructive">{errors.slug.message}</p>}
               </div>
             </div>
             <div className="space-y-2">
               <Label>Email de contacto</Label>
-              <Input {...register('email')} type="email" placeholder="admin@acme.com" />
+              <Input {...register('email')} type="email" placeholder="admin@empresa.com" />
               {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
             </div>
             <div className="space-y-2">

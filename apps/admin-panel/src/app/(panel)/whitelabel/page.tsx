@@ -127,12 +127,12 @@ export default function WhitelabelPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Nombre de marca *</Label>
-                    <Input {...register('brandName')} placeholder="Acme Mail" />
+                    <Input {...register('brandName')} placeholder="Mi Empresa Mail" />
                     {errors.brandName && <p className="text-xs text-destructive">{errors.brandName.message}</p>}
                   </div>
                   <div className="space-y-2">
                     <Label>Dominio de marca *</Label>
-                    <Input {...register('brandDomain')} placeholder="mail.acme.com" />
+                    <Input {...register('brandDomain')} placeholder="mail.empresa.com" />
                     {errors.brandDomain && <p className="text-xs text-destructive">{errors.brandDomain.message}</p>}
                   </div>
                 </div>
@@ -148,13 +148,13 @@ export default function WhitelabelPage() {
 
                 <div className="space-y-2">
                   <Label>URL del logotipo</Label>
-                  <Input {...register('logoUrl')} placeholder="https://cdn.acme.com/logo.svg" />
+                  <Input {...register('logoUrl')} placeholder="https://cdn.empresa.com/logo.svg" />
                   {errors.logoUrl && <p className="text-xs text-destructive">{errors.logoUrl.message}</p>}
                 </div>
 
                 <div className="space-y-2">
                   <Label>Email de soporte</Label>
-                  <Input {...register('supportEmail')} type="email" placeholder="soporte@acme.com" />
+                  <Input {...register('supportEmail')} type="email" placeholder="soporte@empresa.com" />
                   {errors.supportEmail && <p className="text-xs text-destructive">{errors.supportEmail.message}</p>}
                 </div>
 

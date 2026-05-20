@@ -259,7 +259,7 @@ export default function CredentialsPage() {
                 <span className="text-muted-foreground text-xs">(opcional — se genera automáticamente)</span>
               </Label>
               <Input
-                placeholder="mail2026"
+                placeholder="correo2026"
                 {...rotateForm.register('newSelector')}
               />
               {rotateForm.formState.errors.newSelector && (
