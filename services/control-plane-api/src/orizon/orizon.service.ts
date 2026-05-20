@@ -40,12 +40,15 @@ export class OrizonService {
       // Obtener mailboxes del tenant para sincronizar con ORIZON
       const mailboxes = await this.prisma.mailbox.findMany({
         where: { tenantId, status: 'ACTIVE' },
-        select: { id: true, email: true, quota: true },
+        select: { id: true, localPart: true, quotaBytes: true, domain: { select: { domain: true } } },
       });
 
       const body = JSON.stringify({
         customerId: tenant.origoCustomerId,
-        mailboxes: mailboxes.map((m) => ({ email: m.email, quotaMb: m.quota })),
+        mailboxes: mailboxes.map((m) => ({
+          email: `${m.localPart}@${m.domain.domain}`,
+          quotaMb: Number(m.quotaBytes) / (1024 * 1024),
+        })),
       });
 
       const signature = this.buildHmacSignature(body);
@@ -90,7 +93,7 @@ export class OrizonService {
     }
   }
 
-  async handleWebhook(payload: Record<string, unknown>, tenantId?: string): Promise<void> {
+  async handleWebhook(payload: Record<string, unknown>, _tenantId?: string): Promise<void> {
     const event = payload['event'] as string;
     this.log.log(`Webhook ORIZON recibido: ${event}`);
     // En producción: manejar eventos como 'customer.updated', 'invoice.paid', etc.

@@ -5,10 +5,9 @@ import { FEATURES } from '../config/features.config';
 
 export interface WhitelabelConfigDto {
   brandName: string;
+  brandDomain: string;
   primaryColor: string;
   logoUrl?: string;
-  faviconUrl?: string;
-  customDomain?: string;
   supportEmail?: string;
 }
 
@@ -36,7 +35,7 @@ export class WhitelabelService {
       action: 'whitelabel.configured',
       entityType: 'WhitelabelConfig',
       entityId: config.id,
-      metadata: { brandName: dto.brandName, customDomain: dto.customDomain },
+      metadata: { brandName: dto.brandName, brandDomain: dto.brandDomain },
     });
 
     return config;

@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
-import { randomBytes } from 'crypto';
-import { sign } from 'jsonwebtoken';
+import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 
@@ -13,14 +12,13 @@ export interface WebmailTokenDto {
 @Injectable()
 export class WebmailService {
   private readonly log = new Logger(WebmailService.name);
-  private readonly jwtSecret: string;
   private readonly webmailBaseUrl: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly jwt: JwtService,
   ) {
-    this.jwtSecret = process.env.JWT_SECRET ?? randomBytes(32).toString('hex');
     this.webmailBaseUrl = process.env.SNAPPYMAIL_BASE_URL ?? 'https://webmail.4nexa.io';
   }
 
@@ -45,7 +43,10 @@ export class WebmailService {
       purpose: 'webmail_sso',
     };
 
-    const token = sign(payload, this.jwtSecret, { expiresIn: '15m' });
+    const token = this.jwt.sign(payload, {
+      secret: process.env.JWT_SECRET,
+      expiresIn: '15m',
+    });
 
     await this.audit.log({
       userId,

@@ -26,8 +26,8 @@ export class NotificationsService {
         tenantId,
         type: dto.type,
         name: dto.name,
-        configJson: JSON.stringify(dto.config),
-        enabled: true,
+        config: dto.config,
+        events: [],
       },
     });
 
@@ -48,7 +48,7 @@ export class NotificationsService {
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
     });
-    return channels.map((c) => ({ ...c, config: JSON.parse(c.configJson) }));
+    return channels.map((c) => ({ ...c, config: c.config as Record<string, string> }));
   }
 
   async deleteChannel(channelId: string, tenantId: string, userId: string): Promise<void> {
@@ -70,7 +70,7 @@ export class NotificationsService {
     payload: { type: NotificationType; subject: string; body: string },
   ): Promise<{ sent: number; errors: string[] }> {
     const channels = await this.prisma.notificationChannel.findMany({
-      where: { tenantId, type: payload.type, enabled: true },
+      where: { tenantId, type: payload.type, isActive: true },
     });
 
     let sent = 0;
@@ -78,7 +78,7 @@ export class NotificationsService {
 
     for (const channel of channels) {
       try {
-        const config = JSON.parse(channel.configJson) as Record<string, string>;
+        const config = channel.config as Record<string, string>;
         await this.dispatch(channel.type, config, payload);
         sent++;
       } catch (err) {

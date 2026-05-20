@@ -6,10 +6,10 @@ import { FEATURES } from '../config/features.config';
 import type { ArchivalStorageType } from '@prisma/client';
 
 export interface SetArchivalPolicyDto {
-  retentionDays: number;
-  storageType: ArchivalStorageType;
-  s3Bucket?: string;
-  s3Prefix?: string;
+  retentionYears: number;
+  storageBackend: ArchivalStorageType;
+  autoDeleteAfter?: boolean;
+  encryptArchive?: boolean;
 }
 
 @Injectable()
@@ -36,7 +36,7 @@ export class ArchivalService {
       action: 'archival.policy_set',
       entityType: 'ArchivalPolicy',
       entityId: policy.id,
-      metadata: { retentionDays: dto.retentionDays, storageType: dto.storageType },
+      metadata: { retentionYears: dto.retentionYears, storageBackend: dto.storageBackend },
     });
 
     return policy;
@@ -52,8 +52,11 @@ export class ArchivalService {
     const mailbox = await this.prisma.mailbox.findFirst({ where: { id: mailboxId, tenantId } });
     if (!mailbox) throw new NotFoundException('Buzón no encontrado');
 
+    const policy = await this.prisma.archivalPolicy.findUnique({ where: { tenantId } });
+    if (!policy) throw new BadRequestException('No hay política de archivado configurada');
+
     const hold = await this.prisma.legalHold.create({
-      data: { tenantId, mailboxId, reason, createdById: userId },
+      data: { tenantId, archivalPolicyId: policy.id, mailboxIds: [mailboxId], reason, requestedBy: userId },
     });
 
     await this.audit.log({
@@ -70,7 +73,7 @@ export class ArchivalService {
 
   async listLegalHolds(tenantId: string) {
     return this.prisma.legalHold.findMany({
-      where: { tenantId, releasedAt: null },
+      where: { tenantId, isActive: true },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -81,7 +84,7 @@ export class ArchivalService {
 
     await this.prisma.legalHold.update({
       where: { id: holdId },
-      data: { releasedAt: new Date() },
+      data: { isActive: false, endDate: new Date() },
     });
 
     await this.audit.log({
@@ -107,7 +110,7 @@ export class ArchivalService {
     });
 
     return {
-      mailbox: { id: mailbox.id, email: mailbox.email, createdAt: mailbox.createdAt },
+      mailbox: { id: mailbox.id, localPart: mailbox.localPart, createdAt: mailbox.createdAt },
       note: 'Exportación completa disponible en el almacenamiento configurado en ArchivalPolicy',
     };
   }
@@ -119,7 +122,7 @@ export class ArchivalService {
 
     // Verificar que no haya legal holds activos
     const holds = await this.prisma.legalHold.count({
-      where: { mailboxId, releasedAt: null },
+      where: { tenantId, mailboxIds: { has: mailboxId }, isActive: true },
     });
 
     if (holds > 0) {

@@ -27,8 +27,8 @@ export class BimiService {
 
     const config = await this.prisma.bimiConfig.upsert({
       where: { domainId },
-      create: { domainId, svgUrl: dto.svgUrl, vmcUrl: dto.vmcUrl ?? null, validated: false },
-      update: { svgUrl: dto.svgUrl, vmcUrl: dto.vmcUrl ?? null, validated: false },
+      create: { domainId, svgUrl: dto.svgUrl, vmcUrl: dto.vmcUrl ?? null, verified: false },
+      update: { svgUrl: dto.svgUrl, vmcUrl: dto.vmcUrl ?? null, verified: false },
     });
 
     await this.audit.log({
@@ -61,7 +61,7 @@ export class BimiService {
   async markValidated(domainId: string, tenantId: string): Promise<void> {
     const domain = await this.prisma.domain.findFirst({ where: { id: domainId, tenantId } });
     if (!domain) throw new NotFoundException('Dominio no encontrado');
-    await this.prisma.bimiConfig.update({ where: { domainId }, data: { validated: true } });
+    await this.prisma.bimiConfig.update({ where: { domainId }, data: { verified: true } });
   }
 
   /** Valida que la URL apunta a un SVG válido para BIMI (tiny PS format) */
