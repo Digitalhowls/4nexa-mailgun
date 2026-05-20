@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
+import { EventBusService } from '../event-bus/event-bus.service';
 import type {
   CreateMailboxInput,
   UpdateMailboxInput,
@@ -23,7 +24,10 @@ const ARGON2_OPTIONS: argon2.Options = {
 
 @Injectable()
 export class MailboxesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventBus: EventBusService,
+  ) {}
 
   async create(input: CreateMailboxInput) {
     // Verificar que el dominio existe y está activo
@@ -69,7 +73,7 @@ export class MailboxesService {
       ? BigInt(input.quotaBytes)
       : tenant?.plan?.storagePerMailboxBytes ?? BigInt(1024 * 1024 * 1024);
 
-    return this.prisma.mailbox.create({
+    const mailbox = await this.prisma.mailbox.create({
       data: {
         tenantId: input.tenantId,
         domainId: input.domainId,
@@ -94,6 +98,17 @@ export class MailboxesService {
         // passwordHash nunca se expone
       },
     });
+
+    await this.eventBus.publish({
+      type: 'mailbox.created',
+      mailboxId: mailbox.id,
+      tenantId: mailbox.tenantId,
+      domainId: mailbox.domainId,
+      localPart: mailbox.localPart,
+      occurredAt: mailbox.createdAt.toISOString(),
+    });
+
+    return mailbox;
   }
 
   async findAll(filter: MailboxFilterInput) {
@@ -156,8 +171,8 @@ export class MailboxesService {
   }
 
   async update(id: string, input: UpdateMailboxInput) {
-    await this.findOne(id);
-    return this.prisma.mailbox.update({
+    const current = await this.findOne(id);
+    const updated = await this.prisma.mailbox.update({
       where: { id },
       data: {
         ...(input.quotaBytes ? { quotaBytes: BigInt(input.quotaBytes) } : {}),
@@ -182,6 +197,18 @@ export class MailboxesService {
         updatedAt: true,
       },
     });
+
+    if (input.status === 'SUSPENDED' && current.status !== 'SUSPENDED') {
+      await this.eventBus.publish({
+        type: 'mailbox.suspended',
+        mailboxId: updated.id,
+        tenantId: updated.tenantId,
+        localPart: updated.localPart,
+        occurredAt: new Date().toISOString(),
+      });
+    }
+
+    return updated;
   }
 
   async resetPassword(id: string, input: ResetMailboxPasswordInput) {

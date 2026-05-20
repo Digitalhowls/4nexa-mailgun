@@ -31,6 +31,15 @@ export const AgentEnvSchema = z.object({
   // Debe ser idéntica a DKIM_ENCRYPTION_KEY del Control Plane
   AGENT_DKIM_ENCRYPTION_KEY: z.string().min(16).default('change-me-32-char-minimum-key!!'),
 
+  // ─── mTLS (opcional) ─────────────────────────────────────────────────
+  // Si están configuradas, el agente arranca en modo HTTPS con mTLS:
+  //   - AGENT_TLS_CERT_PEM: certificado de servidor del agente (firmado por CA del CP)
+  //   - AGENT_TLS_KEY_PEM:  clave privada del certificado de servidor
+  //   - AGENT_TLS_CA_PEM:   certificado de la CA del CP (para verificar el cert cliente)
+  AGENT_TLS_CERT_PEM: z.string().optional(),
+  AGENT_TLS_KEY_PEM: z.string().optional(),
+  AGENT_TLS_CA_PEM: z.string().optional(),
+
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 });
 

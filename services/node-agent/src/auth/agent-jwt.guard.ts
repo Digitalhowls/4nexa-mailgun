@@ -52,6 +52,33 @@ export class AgentJwtGuard implements CanActivate {
       throw new UnauthorizedException('Token no corresponde a este nodo');
     }
 
+    // ── Verificación mTLS: CN del certificado cliente ────────────────────────
+    // Si el agente arrancó con mTLS, Fastify expone el cert cliente en req.socket.
+    // Verificamos que el CN sea 'control-plane' para asegurar que solo el CP
+    // puede llamar al agente (autenticación mutua).
+    const mtlsEnabled = Boolean(
+      this.config.get('AGENT_TLS_CERT_PEM') &&
+      this.config.get('AGENT_TLS_KEY_PEM') &&
+      this.config.get('AGENT_TLS_CA_PEM'),
+    );
+
+    if (mtlsEnabled) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const socket = (req.raw as any)?.socket;
+      const peerCert = socket?.getPeerCertificate?.() as { subject?: { CN?: string } } | undefined;
+
+      if (!peerCert || !peerCert.subject?.CN) {
+        throw new UnauthorizedException('Certificado cliente mTLS requerido');
+      }
+
+      // El CN del cert cliente del CP debe ser 'control-plane'
+      if (peerCert.subject.CN !== 'control-plane') {
+        throw new UnauthorizedException(
+          `Certificado cliente no autorizado: CN="${peerCert.subject.CN}"`,
+        );
+      }
+    }
+
     return true;
   }
 }

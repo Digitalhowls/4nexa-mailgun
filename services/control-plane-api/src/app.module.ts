@@ -14,6 +14,18 @@ import { MailboxesModule } from './mailboxes/mailboxes.module';
 import { AliasesModule } from './aliases/aliases.module';
 import { NodeAgentModule } from './node-agent/node-agent.module';
 import { LocalConfigEngineModule } from './config-engine/config-engine.module';
+import { EventBusModule } from './event-bus/event-bus.module';
+import { BackupModule } from './backup/backup.module';
+import { QueueEngineModule } from './queue-engine/queue-engine.module';
+import { MetricsModule } from './metrics/metrics.module';
+import { NodeAssignmentModule } from './node-assignment/node-assignment.module';
+import { DeliverabilityModule } from './deliverability/deliverability.module';
+import { BillingModule } from './billing/billing.module';
+import { CredentialRotationModule } from './credential-rotation/credential-rotation.module';
+import { AntispamModule } from './antispam/antispam.module';
+import { DisasterRecoveryModule } from './disaster-recovery/disaster-recovery.module';
+import { BrainModule } from './brain/brain.module';
+import { MigrationModule } from './migration/migration.module';
 
 @Module({
   imports: [
@@ -22,6 +34,7 @@ import { LocalConfigEngineModule } from './config-engine/config-engine.module';
     PrismaModule,
     RedisModule,
     AuditModule,
+    EventBusModule,
 
     // Rate limiting global (ThrottlerGuard registrado como APP_GUARD)
     ThrottlerModule.forRoot([
@@ -41,6 +54,17 @@ import { LocalConfigEngineModule } from './config-engine/config-engine.module';
     AliasesModule,
     NodeAgentModule,
     LocalConfigEngineModule,
+    BackupModule,
+    QueueEngineModule,
+    MetricsModule,
+    NodeAssignmentModule,
+    DeliverabilityModule,
+    BillingModule,
+    CredentialRotationModule,
+    AntispamModule,
+    DisasterRecoveryModule,
+    BrainModule,
+    MigrationModule,
   ],
   providers: [
     {

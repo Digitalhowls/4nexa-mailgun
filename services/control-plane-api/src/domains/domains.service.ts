@@ -9,6 +9,7 @@ import * as forge from 'node-forge';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { DnsCheckerService } from './dns-checker.service';
+import { EventBusService } from '../event-bus/event-bus.service';
 import type { CreateDomainInput, UpdateDomainInput, DomainFilterInput } from '@4nexa/validators';
 import type { EnvConfig } from '../config/env.schema';
 import type { Prisma } from '@prisma/client';
@@ -19,6 +20,7 @@ export class DomainsService {
     private readonly prisma: PrismaService,
     private readonly dnsChecker: DnsCheckerService,
     private readonly config: ConfigService<EnvConfig, true>,
+    private readonly eventBus: EventBusService,
   ) {}
 
   async create(input: CreateDomainInput) {
@@ -32,7 +34,7 @@ export class DomainsService {
     // Generar par de claves DKIM
     const { publicKey, encryptedPrivateKey } = this.generateDkimKeyPair();
 
-    return this.prisma.domain.create({
+    const domain = await this.prisma.domain.create({
       data: {
         tenantId: input.tenantId,
         domain: input.domain,
@@ -42,6 +44,16 @@ export class DomainsService {
         status: 'PENDING_DNS',
       },
     });
+
+    await this.eventBus.publish({
+      type: 'domain.created',
+      domainId: domain.id,
+      tenantId: domain.tenantId,
+      domain: domain.domain,
+      occurredAt: domain.createdAt.toISOString(),
+    });
+
+    return domain;
   }
 
   async findAll(filter: DomainFilterInput) {
@@ -138,17 +150,18 @@ export class DomainsService {
     if (!domain) throw new NotFoundException(`Dominio ${id} no encontrado`);
 
     const result = await this.dnsChecker.checkDomain(
+      domain.id,
       domain.domain,
       domain.dkimSelector,
       domain.dkimPublicKey,
     );
 
-    const mxStatus = result.records.mx.status;
-    const spfStatus = result.records.spf.status;
-    const dkimStatus = result.records.dkim.status;
-    const dmarcStatus = result.records.dmarc.status;
+    const mxStatus = result.mx.status;
+    const spfStatus = result.spf.status;
+    const dkimStatus = result.dkim.status;
+    const dmarcStatus = result.dmarc.status;
 
-    const allValid = result.allValid;
+    const allValid = result.allPassed;
 
     const updated = await this.prisma.domain.update({
       where: { id },
@@ -162,6 +175,17 @@ export class DomainsService {
         verifiedAt: allValid && !domain.verifiedAt ? new Date() : domain.verifiedAt,
       },
     });
+
+    // Publicar domain.verified solo cuando pasa a ACTIVE por primera vez
+    if (allValid && !domain.verifiedAt) {
+      await this.eventBus.publish({
+        type: 'domain.verified',
+        domainId: updated.id,
+        tenantId: updated.tenantId,
+        domain: updated.domain,
+        occurredAt: new Date().toISOString(),
+      });
+    }
 
     return { domain: updated, dnsCheck: result };
   }

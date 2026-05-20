@@ -36,6 +36,11 @@ export const EnvSchema = z.object({
   NODE_AGENT_MTLS_KEY: z.string().optional(),
   NODE_AGENT_MTLS_CA: z.string().optional(),
 
+  // CA interna para emitir certificados mTLS a los nodos (§17.3)
+  // Si no están configuradas, el enrolamiento mTLS está desactivado.
+  MTLS_CA_CERT_PEM: z.string().optional(),
+  MTLS_CA_KEY_PEM: z.string().optional(),
+
   // Node Agent JWT (secreto compartido para firmar tokens enviados al agente)
   NODE_AGENT_JWT_SECRET: z.string().min(32),
   NODE_AGENT_JWT_EXPIRES_IN: z.string().default('5m'),
@@ -49,6 +54,10 @@ export const EnvSchema = z.object({
 
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
+
+  // Audit HMAC (§29.3) — secreto para la cadena de integridad de audit logs
+  // CRÍTICO: sobreescribir en producción con un valor aleatorio de >= 32 caracteres.
+  AUDIT_HMAC_SECRET: z.string().min(32).default('CHANGE_ME_audit_hmac_secret_00000'),
 });
 
 export type EnvConfig = z.infer<typeof EnvSchema>;

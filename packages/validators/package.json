@@ -17,6 +17,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@4nexa/types": "workspace:*",
     "zod": "^3.23.8"
   },
   "devDependencies": {

@@ -142,7 +142,7 @@ export class DomainsController {
       action: 'domain.dns_verified',
       entityType: 'domain',
       entityId: id,
-      metadata: { allValid: result.dnsCheck.allValid },
+      metadata: { allPassed: result.dnsCheck.allPassed },
       ipAddress: req.ip,
     });
     return { success: true, data: result };

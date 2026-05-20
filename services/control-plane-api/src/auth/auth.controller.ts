@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Get,
   Body,
   HttpCode,
   HttpStatus,
@@ -18,10 +19,12 @@ import {
   RegisterUserSchema,
   RefreshTokenSchema,
   EnableTotpSchema,
+  ChangePasswordSchema,
   type LoginInput,
   type RegisterUserInput,
   type RefreshTokenInput,
   type EnableTotpInput,
+  type ChangePasswordInput,
 } from '@4nexa/validators';
 import { UserRole, type AuthTokenPayload } from '@4nexa/types';
 import { RolesGuard } from './guards/roles.guard';
@@ -74,7 +77,7 @@ export class AuthController {
 
     await this.auditService.log({
       userId: currentUser.sub,
-      tenantId: currentUser.tenantId,
+      tenantId: currentUser.tenantId ?? undefined,
       action: 'auth.register_user',
       entityType: 'user',
       entityId: user.id,
@@ -100,6 +103,37 @@ export class AuthController {
     return { success: true, data: tokens };
   }
 
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Obtener usuario autenticado' })
+  async me(@CurrentUser() user: AuthTokenPayload) {
+    const data = await this.authService.getMe(user.sub);
+    return { success: true, data };
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cambiar contraseña del usuario autenticado' })
+  async changePassword(
+    @Body(new ZodValidationPipe(ChangePasswordSchema)) body: ChangePasswordInput,
+    @CurrentUser() user: AuthTokenPayload,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.authService.changePassword(user.sub, body.currentPassword, body.newPassword);
+
+    await this.auditService.log({
+      userId: user.sub,
+      tenantId: user.tenantId ?? undefined,
+      action: 'auth.change_password',
+      ipAddress: req.ip,
+    });
+
+    return { success: true };
+  }
+
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
@@ -110,7 +144,7 @@ export class AuthController {
 
     await this.auditService.log({
       userId: user.sub,
-      tenantId: user.tenantId,
+      tenantId: user.tenantId ?? undefined,
       action: 'auth.logout',
       ipAddress: req.ip,
     });
@@ -142,7 +176,7 @@ export class AuthController {
 
     await this.auditService.log({
       userId: user.sub,
-      tenantId: user.tenantId,
+      tenantId: user.tenantId ?? undefined,
       action: 'auth.totp_enabled',
       ipAddress: req.ip,
     });
@@ -163,7 +197,7 @@ export class AuthController {
 
     await this.auditService.log({
       userId: user.sub,
-      tenantId: user.tenantId,
+      tenantId: user.tenantId ?? undefined,
       action: 'auth.totp_disabled',
       ipAddress: req.ip,
     });

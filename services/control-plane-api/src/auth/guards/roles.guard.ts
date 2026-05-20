@@ -26,7 +26,7 @@ export class RolesGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<RequestWithUser>();
     const user: AuthTokenPayload = request.user;
 
-    if (!requiredRoles.includes(user.role)) {
+    if (!requiredRoles.includes(user.role as UserRole)) {
       throw new ForbiddenException('No tienes permisos para realizar esta acción');
     }
 

@@ -78,6 +78,12 @@ enum BackupStatus {
   VERIFIED
 }
 
+enum WarmupStatus {
+  COLD
+  WARMING
+  WARM
+}
+
 enum AbuseType {
   MASS_SENDING
   COMPROMISED_CREDENTIALS
@@ -157,27 +163,48 @@ model Plan {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model Node {
-  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  hostname        String     @unique @db.VarChar(253)
-  ipV4            String     @db.VarChar(15)
-  ipV6            String?    @db.VarChar(45)
-  provider        String     @db.VarChar(100)
-  region          String     @db.VarChar(100)
-  status          NodeStatus @default(ACTIVE)
-  maxTenants      Int        @default(50)
-  currentTenants  Int        @default(0)
-  reputationScore Int        @default(100)
-  capacityScore   Int        @default(100)
-  lastHealthAt    DateTime?  @db.Timestamptz
-  lastAgentAt     DateTime?  @db.Timestamptz
-  createdAt       DateTime   @default(now()) @db.Timestamptz
-  updatedAt       DateTime   @updatedAt @db.Timestamptz
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  hostname        String        @unique @db.VarChar(253)
+  ipV4            String        @db.VarChar(15)
+  ipV6            String?       @db.VarChar(45)
+  provider        String        @db.VarChar(100)
+  region          String        @db.VarChar(100)
+  status          NodeStatus    @default(ACTIVE)
+  maxTenants      Int           @default(50)
+  currentTenants  Int           @default(0)
+  reputationScore Int           @default(100)
+  capacityScore   Int           @default(100)
+  warmupStatus    WarmupStatus  @default(COLD)
+  warmupEndsAt    DateTime?     @db.Timestamptz
+  lastHealthAt    DateTime?     @db.Timestamptz
+  lastAgentAt     DateTime?     @db.Timestamptz
+  createdAt       DateTime      @default(now()) @db.Timestamptz
+  updatedAt       DateTime      @updatedAt @db.Timestamptz
 
-  tenants    Tenant[]
-  domains    Domain[]
-  backupJobs BackupJob[]
+  tenants      Tenant[]
+  domains      Domain[]
+  backupJobs   BackupJob[]
+  certificates NodeCertificate[]
 
   @@map("nodes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NodeCertificate — certificados mTLS emitidos por el Control Plane (§17.3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model NodeCertificate {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nodeId       String    @db.Uuid
+  node         Node      @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  certPem      String    // X.509 PEM del certificado de servidor del agente
+  serialNumber String    @db.VarChar(40)
+  fingerprint  String    @db.VarChar(64)    // SHA-256 hex del cert
+  issuedAt     DateTime  @default(now()) @db.Timestamptz
+  expiresAt    DateTime  @db.Timestamptz
+  revokedAt    DateTime? @db.Timestamptz
+
+  @@map("node_certificates")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -195,6 +222,7 @@ model Tenant {
   suspendedAt   DateTime?     @db.Timestamptz
   suspendReason String?       @db.VarChar(500)
   notes         String?       @db.Text
+  trustScore    Int           @default(100)
   planId        String?       @db.Uuid
   nodeId        String?       @db.Uuid
   createdAt     DateTime      @default(now()) @db.Timestamptz
@@ -206,6 +234,7 @@ model Tenant {
   mailboxes Mailbox[]
   aliases   Alias[]
   users     User[]
+  migrationJobs MigrationJob[]
 
   @@index([slug])
   @@index([status])
@@ -230,6 +259,7 @@ model Domain {
   dkimSelector          String          @default("4nexa") @db.VarChar(63)
   dkimPublicKey         String?         @db.Text
   dkimPrivateKeyEncrypted String?       @db.Text
+  healthScore           Int             @default(100)
   lastDnsCheckAt        DateTime?       @db.Timestamptz
   verifiedAt            DateTime?       @db.Timestamptz
   suspendedAt           DateTime?       @db.Timestamptz
@@ -239,13 +269,37 @@ model Domain {
 
   tenant    Tenant    @relation(fields: [tenantId], references: [id])
   node      Node?     @relation(fields: [nodeId], references: [id])
-  mailboxes Mailbox[]
-  aliases   Alias[]
+  mailboxes      Mailbox[]
+  aliases        Alias[]
+  antispamPolicy AntispamPolicy?
 
   @@unique([tenantId, domain])
   @@index([domain])
   @@index([status])
   @@map("domains")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AntispamPolicy — política antispam por dominio (§27)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AntispamPolicy {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  domainId        String   @unique @db.Uuid
+  enabled         Boolean  @default(true)
+  // 0.0–1.0: puntuación ≥ spamThreshold → FLAG (no rechazar, sólo etiquetar)
+  spamThreshold   Float    @default(0.80)
+  // 0.0–1.0: puntuación ≥ rejectAbove → REJECT
+  rejectAbove     Float    @default(0.95)
+  greylistEnabled Boolean  @default(false)
+  whitelist       String[] @default([])
+  blacklist       String[] @default([])
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+
+  domain Domain @relation(fields: [domainId], references: [id])
+
+  @@map("antispam_policies")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -363,6 +417,8 @@ model AuditLog {
   metadata   Json?
   ipAddress  String?  @db.VarChar(45)
   userAgent  String?  @db.VarChar(512)
+  // HMAC-SHA256 hex para tamper detection (§29.3). Vacío en registros legacy.
+  hmac       String   @default("") @db.VarChar(64)
   createdAt  DateTime @default(now()) @db.Timestamptz
 
   user User? @relation(fields: [userId], references: [id])
@@ -455,4 +511,104 @@ model MailEvent {
   @@index([type])
   @@index([occurredAt])
   @@map("mail_events")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MemoryCell — memoria operacional del Brain (§14)
+// Almacena conocimiento estructurado por scope y clave.
+// NUNCA almacena emails completos ni datos PII directos.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum MemoryCellScope {
+  REPUTATION
+  DELIVERABILITY
+  SUPPORT
+  ABUSE
+  RECOVERY
+  MIGRATION
+  OPERATIONAL
+}
+
+model MemoryCell {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// null = celda global del sistema (sin tenant)
+  tenantId   String?         @db.Uuid
+  scope      MemoryCellScope
+  /// Clave compuesta: ej. "node:{nodeId}:bounce_rate" o "tenant:{id}:risk"
+  key        String          @db.VarChar(200)
+  /// Payload JSONB — estructura libre, sin PII directa
+  payload    Json
+  expiresAt  DateTime?       @db.Timestamptz
+  createdAt  DateTime        @default(now()) @db.Timestamptz
+  updatedAt  DateTime        @updatedAt @db.Timestamptz
+  /// userId o "system" — trazabilidad de escritura
+  createdBy  String          @default("system") @db.VarChar(100)
+  version    Int             @default(1)
+
+  @@unique([tenantId, scope, key])
+  @@index([tenantId])
+  @@index([scope])
+  @@index([expiresAt])
+  @@map("memory_cells")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MigrationJob — trabajos de migración IMAP desde orígenes externos (§15)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum MigrationProvider {
+  GOOGLE_WORKSPACE
+  MICROSOFT_365
+  CPANEL
+  PLESK
+  ZIMBRA
+  GENERIC_IMAP
+}
+
+enum MigrationStatus {
+  PENDING
+  RUNNING
+  PAUSED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model MigrationJob {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String            @db.Uuid
+  /// Buzón destino — null = migración a nivel de dominio (todos los buzones del tenant)
+  mailboxId             String?           @db.Uuid
+  provider              MigrationProvider
+  status                MigrationStatus   @default(PENDING)
+
+  /// Servidor IMAP origen
+  sourceHost            String            @db.VarChar(255)
+  sourcePort            Int               @default(993)
+  sourceUsername        String            @db.VarChar(255)
+  /// Contraseña cifrada AES-256-GCM — NUNCA en texto plano
+  sourceEncryptedPassword String          @db.Text
+  sourceTls             Boolean           @default(true)
+
+  /// Progreso incremental
+  foldersTotal          Int               @default(0)
+  foldersImported       Int               @default(0)
+  messagesTotal         Int               @default(0)
+  messagesImported      Int               @default(0)
+  bytesTotal            BigInt            @default(0)
+  bytesImported         BigInt            @default(0)
+
+  errorMessage          String?           @db.Text
+  startedAt             DateTime?         @db.Timestamptz
+  completedAt           DateTime?         @db.Timestamptz
+  createdAt             DateTime          @default(now()) @db.Timestamptz
+  updatedAt             DateTime          @updatedAt @db.Timestamptz
+  createdBy             String            @db.VarChar(100)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([provider])
+  @@map("migration_jobs")
 }

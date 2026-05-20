@@ -26,6 +26,7 @@ export interface Logger {
 
 export function createLogger(options: {
   service: string;
+  module?: string;
   level?: LogLevel;
   pretty?: boolean;
 }): Logger {

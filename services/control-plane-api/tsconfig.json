@@ -4,10 +4,11 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "baseUrl": "./",
+    "lib": ["ES2022", "DOM"],
     "paths": {
       "@/*": ["src/*"]
     }
   },
-  "include": ["src/**/*", "prisma/seed.ts"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "test"]
 }

@@ -2,6 +2,7 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
+import * as https from 'node:https';
 import { createLogger } from '@4nexa/logger';
 import type { EnvConfig } from '../config/env.schema';
 
@@ -39,6 +40,9 @@ export class NodeAgentClient {
   private readonly jwtSecret: string;
   private readonly jwtExpiresIn: string;
 
+  /** Agente HTTPS para mTLS (reutilizable por petición). Se crea de forma lazy. */
+  private mtlsAgent: https.Agent | undefined;
+
   constructor(
     private readonly config: ConfigService<EnvConfig, true>,
     private readonly jwtService: JwtService,
@@ -46,6 +50,28 @@ export class NodeAgentClient {
     this.baseUrl = this.config.get('NODE_AGENT_BASE_URL');
     this.jwtSecret = this.config.get('NODE_AGENT_JWT_SECRET');
     this.jwtExpiresIn = this.config.get('NODE_AGENT_JWT_EXPIRES_IN');
+  }
+
+  /**
+   * Construye (o reutiliza) un agente HTTPS con mTLS si están configuradas
+   * las variables NODE_AGENT_MTLS_CERT, NODE_AGENT_MTLS_KEY, NODE_AGENT_MTLS_CA.
+   */
+  private getMtlsAgent(): https.Agent | undefined {
+    const cert = this.config.get('NODE_AGENT_MTLS_CERT');
+    const key = this.config.get('NODE_AGENT_MTLS_KEY');
+    const ca = this.config.get('NODE_AGENT_MTLS_CA');
+
+    if (!cert || !key || !ca) return undefined;
+
+    if (!this.mtlsAgent) {
+      this.mtlsAgent = new https.Agent({
+        cert,
+        key,
+        ca,
+        rejectUnauthorized: true,
+      });
+    }
+    return this.mtlsAgent;
   }
 
   /**
@@ -80,19 +106,29 @@ export class NodeAgentClient {
     const url = `${this.baseUrl}/operations`;
     logger.info({ nodeId, operation, correlationId }, 'Enviando operación al agente');
 
+    const mtlsAgent = this.getMtlsAgent();
+    const fetchOptions: RequestInit & { agent?: https.Agent } = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
+    };
+
+    // Node.js fetch nativo no soporta `agent`, pero podemos inyectarlo
+    // a través del dispatcher global o de http.globalAgent.
+    // Alternativa: usamos http.request cuando hay mTLS.
+    if (mtlsAgent) {
+      (fetchOptions as Record<string, unknown>)['agent'] = mtlsAgent;
+    }
+
     let response: Response;
     try {
-      response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-        // timeout: fetch nativo no soporta AbortSignal en todos los entornos,
-        // se gestiona con AbortController
-        signal: AbortSignal.timeout(30_000),
-      });
+      response = await (mtlsAgent
+        ? NodeAgentClient.fetchWithAgent(url, fetchOptions, mtlsAgent)
+        : fetch(url, fetchOptions));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error(err instanceof Error ? err : new Error(msg), `No se pudo conectar al agente del nodo ${nodeId}`);
@@ -148,5 +184,67 @@ export class NodeAgentClient {
    */
   async queueStats(nodeId: string, tenantId?: string) {
     return this.call(nodeId, 'queue_stats', { tenantId });
+  }
+
+  /**
+   * Ejecuta un backup en el nodo agente.
+   */
+  async backup(
+    nodeId: string,
+    type: 'full' | 'incremental' | 'mailboxes' | 'config',
+    targetPath?: string,
+    tenantId?: string,
+  ) {
+    return this.call(nodeId, 'backup_execute', { type, targetPath, tenantId });
+  }
+
+  /**
+   * Realiza una petición HTTPS utilizando el agente mTLS proporcionado.
+   * El fetch nativo de Node.js no soporta agentes HTTPS personalizados,
+   * por lo que usamos `https.request` directamente y lo envolvemos en una Promise.
+   */
+  private static fetchWithAgent(
+    url: string,
+    options: RequestInit,
+    agent: https.Agent,
+  ): Promise<Response> {
+    return new Promise((resolve, reject) => {
+      const parsed = new URL(url);
+      const bodyStr = typeof options.body === 'string' ? options.body : '';
+
+      const headers = options.headers as Record<string, string>;
+      const req = https.request(
+        {
+          hostname: parsed.hostname,
+          port: parsed.port ? parseInt(parsed.port, 10) : 443,
+          path: parsed.pathname + parsed.search,
+          method: (options.method ?? 'GET').toUpperCase(),
+          headers: {
+            ...headers,
+            'Content-Length': Buffer.byteLength(bodyStr).toString(),
+          },
+          agent,
+        },
+        (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => {
+            const body = Buffer.concat(chunks).toString('utf-8');
+            // Construir un objeto Response-like compatible
+            resolve(
+              new Response(body, {
+                status: res.statusCode ?? 500,
+                headers: res.headers as Record<string, string>,
+              }),
+            );
+          });
+        },
+      );
+
+      req.on('error', reject);
+
+      if (bodyStr) req.write(bodyStr);
+      req.end();
+    });
   }
 }

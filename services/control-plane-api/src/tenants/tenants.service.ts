@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EventBusService } from '../event-bus/event-bus.service';
 import type { CreateTenantInput, UpdateTenantInput, SuspendTenantInput, TenantFilterInput } from '@4nexa/validators';
 import type { Prisma } from '@prisma/client';
 
@@ -21,7 +22,10 @@ function slugify(name: string): string {
 
 @Injectable()
 export class TenantsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventBus: EventBusService,
+  ) {}
 
   async create(input: CreateTenantInput) {
     const slug = input.slug ?? slugify(input.name);
@@ -67,6 +71,15 @@ export class TenantsService {
         data: { currentTenants: { increment: 1 } },
       });
     }
+
+    await this.eventBus.publish({
+      type: 'tenant.created',
+      tenantId: tenant.id,
+      slug: tenant.slug,
+      planId: tenant.planId,
+      nodeId: tenant.nodeId,
+      occurredAt: tenant.createdAt.toISOString(),
+    });
 
     return tenant;
   }
@@ -135,7 +148,7 @@ export class TenantsService {
       throw new BadRequestException('El tenant ya está suspendido');
     }
 
-    return this.prisma.tenant.update({
+    const updated = await this.prisma.tenant.update({
       where: { id },
       data: {
         status: 'SUSPENDED',
@@ -143,6 +156,16 @@ export class TenantsService {
         suspendReason: input.reason ?? null,
       },
     });
+
+    await this.eventBus.publish({
+      type: 'tenant.suspended',
+      tenantId: updated.id,
+      slug: updated.slug,
+      reason: input.reason ?? null,
+      occurredAt: new Date().toISOString(),
+    });
+
+    return updated;
   }
 
   async reactivate(id: string) {
@@ -151,10 +174,19 @@ export class TenantsService {
       throw new BadRequestException('El tenant no está suspendido');
     }
 
-    return this.prisma.tenant.update({
+    const updated = await this.prisma.tenant.update({
       where: { id },
       data: { status: 'ACTIVE', suspendedAt: null, suspendReason: null },
     });
+
+    await this.eventBus.publish({
+      type: 'tenant.reactivated',
+      tenantId: updated.id,
+      slug: updated.slug,
+      occurredAt: new Date().toISOString(),
+    });
+
+    return updated;
   }
 
   async assignNode(tenantId: string, nodeId: string) {

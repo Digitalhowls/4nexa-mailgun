@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   ForbiddenException,
   ConflictException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -88,7 +89,7 @@ export class AuthService {
         sub: user.id,
         email: user.email,
         role: user.role as AuthTokenPayload['role'],
-        tenantId: user.tenantId ?? undefined,
+        tenantId: user.tenantId,
         jti: crypto.randomUUID(),
       },
       ipAddress,
@@ -164,7 +165,7 @@ export class AuthService {
         sub: stored.user.id,
         email: stored.user.email,
         role: stored.user.role as AuthTokenPayload['role'],
-        tenantId: stored.user.tenantId ?? undefined,
+        tenantId: stored.user.tenantId,
         jti: crypto.randomUUID(),
       },
       ipAddress,
@@ -178,6 +179,39 @@ export class AuthService {
     await this.prisma.refreshToken.updateMany({
       where: { jti, revokedAt: null },
       data: { revokedAt: new Date() },
+    });
+  }
+
+  // ── Me ─────────────────────────────────────────────────────────────────────
+
+  async getMe(userId: string): Promise<{ id: string; email: string; role: string; tenantId: string | null }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, role: true, tenantId: true },
+    });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    return user;
+  }
+
+  // ── Change password ────────────────────────────────────────────────────────
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+
+    const valid = await argon2.verify(user.passwordHash, currentPassword);
+    if (!valid) throw new UnauthorizedException('Contraseña actual incorrecta');
+
+    const newHash = await argon2.hash(newPassword, {
+      type: argon2.argon2id,
+      memoryCost: 65536,
+      timeCost: 3,
+      parallelism: 4,
+    });
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newHash },
     });
   }
 
@@ -254,6 +288,17 @@ export class AuthService {
       expiresAt.setTime(expiresAt.getTime() + amount * (ms[unit!] ?? 0));
     }
 
+    // Calcular expiresIn en segundos (para el access token)
+    const accessExpiresIn = this.config.get('JWT_ACCESS_EXPIRES_IN');
+    let expiresInSeconds = 900; // 15m por defecto
+    const accessMatch = accessExpiresIn.match(/^(\d+)([smhd])$/);
+    if (accessMatch) {
+      const amount = parseInt(accessMatch[1]!, 10);
+      const unit = accessMatch[2];
+      const secs: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
+      expiresInSeconds = amount * (secs[unit!] ?? 1);
+    }
+
     await this.prisma.refreshToken.create({
       data: {
         userId: payload.sub,
@@ -264,6 +309,6 @@ export class AuthService {
       },
     });
 
-    return { accessToken, refreshToken };
+    return { accessToken, refreshToken, expiresIn: expiresInSeconds };
   }
 }

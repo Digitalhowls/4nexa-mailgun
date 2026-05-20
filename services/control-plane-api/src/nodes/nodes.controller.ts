@@ -159,4 +159,67 @@ export class NodesController {
     const result = await this.nodesService.validateConfig(id);
     return { success: true, data: result };
   }
+
+  // ── mTLS: enrolamiento y rotación de certificados (§17.3) ─────────────────
+
+  @Post(':id/enroll')
+  @HttpCode(HttpStatus.CREATED)
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Emitir certificado mTLS para el nodo (enrolamiento)',
+    description:
+      'Genera un certificado de servidor firmado por la CA interna. ' +
+      'La clave privada solo se devuelve en esta llamada. ' +
+      'Configure AGENT_TLS_CERT_PEM, AGENT_TLS_KEY_PEM y AGENT_TLS_CA_PEM en el agente.',
+  })
+  async enroll(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthTokenPayload,
+    @Req() req: FastifyRequest,
+  ) {
+    const result = await this.nodesService.enrollNodeCert(id);
+    await this.auditService.log({
+      userId: user.sub,
+      action: 'node.cert_enrolled',
+      entityType: 'node',
+      entityId: id,
+      metadata: { fingerprint: result.fingerprint, expiresAt: result.expiresAt.toISOString() },
+      ipAddress: req.ip,
+    });
+    return { success: true, data: result };
+  }
+
+  @Post(':id/rotate-cert')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({
+    summary: 'Rotar certificado mTLS del nodo',
+    description:
+      'Revoca el certificado activo y emite uno nuevo. ' +
+      'Actualice las variables de entorno del agente con los nuevos valores.',
+  })
+  async rotateCert(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthTokenPayload,
+    @Req() req: FastifyRequest,
+  ) {
+    const result = await this.nodesService.rotateCert(id);
+    await this.auditService.log({
+      userId: user.sub,
+      action: 'node.cert_rotated',
+      entityType: 'node',
+      entityId: id,
+      metadata: { fingerprint: result.fingerprint, expiresAt: result.expiresAt.toISOString() },
+      ipAddress: req.ip,
+    });
+    return { success: true, data: result };
+  }
+
+  @Get(':id/cert')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN)
+  @ApiOperation({ summary: 'Ver certificado mTLS activo del nodo (sin clave privada)' })
+  async getActiveCert(@Param('id', ParseUUIDPipe) id: string) {
+    const cert = await this.nodesService.getActiveCert(id);
+    return { success: true, data: cert };
+  }
 }
