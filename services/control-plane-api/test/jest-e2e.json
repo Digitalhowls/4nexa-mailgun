@@ -1,0 +1,16 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "..",
+  "testEnvironment": "node",
+  "testRegex": "./test/.+\\.e2e-spec\\.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "^@4nexa/logger$": "<rootDir>/../../packages/logger/src/index.ts",
+    "^@4nexa/types$": "<rootDir>/../../packages/types/src/index.ts",
+    "^@4nexa/validators$": "<rootDir>/../../packages/validators/src/index.ts",
+    "^@4nexa/config-engine$": "<rootDir>/../../packages/config-engine/src/index.ts"
+  },
+  "setupFiles": ["<rootDir>/test/setup-e2e.ts"]
+}
