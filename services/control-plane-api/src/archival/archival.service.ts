@@ -1,15 +1,42 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { IsString, IsNotEmpty, IsUUID, MaxLength } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { FEATURES } from '../config/features.config';
 import type { ArchivalStorageType } from '@prisma/client';
 
-export interface SetArchivalPolicyDto {
-  retentionYears: number;
-  storageBackend: ArchivalStorageType;
+export class SetArchivalPolicyDto {
+  @ApiProperty({ description: 'Años de retención de mensajes archivados', minimum: 1, maximum: 10 })
+  retentionYears!: number;
+
+  @ApiProperty({ description: 'Backend de almacenamiento para el archivado' })
+  storageBackend!: ArchivalStorageType;
+
+  @ApiProperty({ description: 'Eliminar automáticamente tras retentionYears', required: false })
   autoDeleteAfter?: boolean;
+
+  @ApiProperty({ description: 'Cifrar los mensajes archivados', required: false })
   encryptArchive?: boolean;
+}
+
+export class CreateLegalHoldDto {
+  @ApiProperty({ description: 'ID del buzón bajo retención legal' })
+  @IsUUID()
+  mailboxId!: string;
+
+  @ApiProperty({ description: 'Motivo de la retención legal' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1000)
+  reason!: string;
+}
+
+export class GdprRequestDto {
+  @ApiProperty({ description: 'ID del buzón del titular del dato' })
+  @IsUUID()
+  mailboxId!: string;
 }
 
 @Injectable()

@@ -3,10 +3,37 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { IsString, IsNotEmpty, IsArray, IsEnum, IsOptional, IsInt, Min, Max, IsDateString, MaxLength } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 import { randomBytes, createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { ApiKeyScope } from '@prisma/client';
+
+export class CreateApiKeyBodyDto {
+  @ApiProperty({ description: 'Nombre descriptivo para la API key' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  name!: string;
+
+  @ApiProperty({ description: 'Permisos (scopes) de la API key', isArray: true })
+  @IsArray()
+  @IsEnum(['READ_MAILBOXES', 'WRITE_MAILBOXES', 'READ_DOMAINS', 'WRITE_DOMAINS', 'READ_METRICS', 'FULL_ACCESS'], { each: true })
+  scopes!: ApiKeyScope[];
+
+  @ApiProperty({ description: 'Límite de peticiones por minuto', required: false, minimum: 1, maximum: 10000 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10000)
+  rateLimit?: number;
+
+  @ApiProperty({ description: 'Fecha de expiración ISO 8601 (opcional)', required: false })
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
+}
 
 export interface CreateApiKeyDto {
   name: string;

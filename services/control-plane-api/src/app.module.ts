@@ -37,6 +37,7 @@ import { BimiModule } from './bimi/bimi.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OrizonModule } from './orizon/orizon.module';
 import { WhitelabelModule } from './whitelabel/whitelabel.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -87,6 +88,7 @@ import { WhitelabelModule } from './whitelabel/whitelabel.module';
     NotificationsModule,
     OrizonModule,
     WhitelabelModule,
+    HealthModule,
   ],
   providers: [
     {

@@ -1,7 +1,21 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { CalendarShareType } from '@prisma/client';
+
+export class EnableCalendarDto {
+  @ApiProperty({ description: 'Activar sincronización EAS (Exchange ActiveSync)', required: false })
+  @IsOptional()
+  @IsBoolean()
+  easEnabled?: boolean;
+
+  @ApiProperty({ description: 'Tipo de compartición del calendario', enum: ['PRIVATE', 'SHARED', 'PUBLIC'], required: false })
+  @IsOptional()
+  @IsEnum(['PRIVATE', 'SHARED', 'PUBLIC'])
+  shareType?: CalendarShareType;
+}
 
 export interface CalendarConfigDto {
   id: string;

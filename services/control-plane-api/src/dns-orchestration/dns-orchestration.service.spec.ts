@@ -7,7 +7,7 @@ import { EventBusService } from '../event-bus/event-bus.service';
 
 const mockPrisma = {
   dnsProvider: { create: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
-  domain: { findFirst: jest.fn(), findMany: jest.fn() },
+  domain: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
   node: { findUnique: jest.fn() },
 };
 const mockAudit = { log: jest.fn() };
@@ -108,13 +108,22 @@ describe('DnsOrchestrationService', () => {
       await expect(service.verifyDomain('d1', 't1')).rejects.toThrow(NotFoundException);
     });
 
-    it('retorna estado de registros DNS', async () => {
+    it('retorna estado de registros DNS tras verificación real y persiste en DB', async () => {
       mockPrisma.domain.findFirst.mockResolvedValue({
-        id: 'd1', mxStatus: 'VALID', spfStatus: 'VALID', dkimStatus: 'INVALID', dmarcStatus: 'UNCHECKED',
+        id: 'd1', domain: 'example.com', dkimSelector: 'default',
+        mxStatus: 'VALID', spfStatus: 'VALID', dkimStatus: 'INVALID', dmarcStatus: 'UNCHECKED',
       });
+      mockPrisma.domain.update = jest.fn().mockResolvedValue({});
+
       const result = await service.verifyDomain('d1', 't1');
-      expect(result.mx).toBe(true);
-      expect(result.dkim).toBe(false);
+
+      expect(mockPrisma.domain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'd1' } }),
+      );
+      expect(typeof result.mx).toBe('boolean');
+      expect(typeof result.spf).toBe('boolean');
+      expect(typeof result.dkim).toBe('boolean');
+      expect(typeof result.dmarc).toBe('boolean');
     });
   });
 });

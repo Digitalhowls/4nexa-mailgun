@@ -6,10 +6,12 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import { promises as dns } from 'dns';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { EventBusService } from '../event-bus/event-bus.service';
 import type { DnsProviderType } from '@prisma/client';
+import { DNS_ADAPTERS } from './dns-adapters';
 
 export interface CreateDnsProviderDto {
   provider: DnsProviderType;
@@ -150,14 +152,63 @@ export class DnsOrchestrationService {
     const domain = await this.prisma.domain.findFirst({ where: { id: domainId, tenantId } });
     if (!domain) throw new NotFoundException('Dominio no encontrado');
 
-    // En producción se haría dig/nslookup real.
-    // Aquí consultamos el estado actual del dominio en DB.
-    return {
-      mx: domain.mxStatus === 'VALID',
-      spf: domain.spfStatus === 'VALID',
-      dkim: domain.dkimStatus === 'VALID',
-      dmarc: domain.dmarcStatus === 'VALID',
-    };
+    const domainName = domain.domain;
+    const [mxOk, spfOk, dkimOk, dmarcOk] = await Promise.all([
+      this.checkMx(domainName),
+      this.checkSpf(domainName),
+      this.checkDkim(domainName, domain.dkimSelector ?? 'default'),
+      this.checkDmarc(domainName),
+    ]);
+
+    // Persistir resultado en DB
+    await this.prisma.domain.update({
+      where: { id: domainId },
+      data: {
+        mxStatus: mxOk ? 'VALID' : 'INVALID',
+        spfStatus: spfOk ? 'VALID' : 'INVALID',
+        dkimStatus: dkimOk ? 'VALID' : 'INVALID',
+        dmarcStatus: dmarcOk ? 'VALID' : 'INVALID',
+        lastDnsCheckAt: new Date(),
+      },
+    });
+
+    return { mx: mxOk, spf: spfOk, dkim: dkimOk, dmarc: dmarcOk };
+  }
+
+  private async checkMx(domainName: string): Promise<boolean> {
+    try {
+      const records = await dns.resolveMx(domainName);
+      return records.length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  private async checkSpf(domainName: string): Promise<boolean> {
+    try {
+      const records = await dns.resolveTxt(domainName);
+      return records.flat().some((r) => r.startsWith('v=spf1'));
+    } catch {
+      return false;
+    }
+  }
+
+  private async checkDkim(domainName: string, selector: string): Promise<boolean> {
+    try {
+      const records = await dns.resolveTxt(`${selector}._domainkey.${domainName}`);
+      return records.flat().some((r) => r.includes('v=DKIM1'));
+    } catch {
+      return false;
+    }
+  }
+
+  private async checkDmarc(domainName: string): Promise<boolean> {
+    try {
+      const records = await dns.resolveTxt(`_dmarc.${domainName}`);
+      return records.flat().some((r) => r.startsWith('v=DMARC1'));
+    } catch {
+      return false;
+    }
   }
 
   async getDnsStatus(domainId: string, tenantId: string) {
@@ -242,10 +293,22 @@ export class DnsOrchestrationService {
     provider: { provider: DnsProviderType; encApiKey: string; encApiSecret: string | null; zoneId: string | null },
     record: { type: string; name: string; value: string },
   ): Promise<void> {
-    // En producción: llamar a la API del proveedor (Cloudflare, Hetzner, etc.)
-    // La implementación real dependería del proveedor específico.
+    const adapter = DNS_ADAPTERS[provider.provider];
+
+    const creds = {
+      apiKey: this.decrypt(provider.encApiKey),
+      apiSecret: provider.encApiSecret ? this.decrypt(provider.encApiSecret) : undefined,
+      zoneId: provider.zoneId ?? undefined,
+    };
+
     this.log.debug(`[${provider.provider}] CREATE ${record.type} ${record.name} → ${record.value}`);
-    // Placeholder — las integraciones reales se implementan por proveedor
+
+    await adapter.createRecord(creds, {
+      type: record.type,
+      name: record.name,
+      value: record.value,
+      ttl: 3600,
+    });
   }
 
   private encrypt(plaintext: string): string {
