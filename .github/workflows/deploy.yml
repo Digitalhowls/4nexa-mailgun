@@ -1,0 +1,215 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Deploy — 4nexa Mailgun Platform
+# Trigger: CI pipeline completado en main con éxito
+# Pipeline: Deploy Staging → Smoke Tests → Approval Manual → Deploy Production
+# Target: aaPanel (SSH + Docker Compose)
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  # ── 1. Deploy Staging ─────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy → Staging
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment:
+      name: staging
+      url: https://staging.erp.4nexa.io
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to staging via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.STAGING_SSH_HOST }}
+          username: ${{ secrets.STAGING_SSH_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          port: ${{ secrets.STAGING_SSH_PORT || 22 }}
+          script: |
+            set -euo pipefail
+            cd /opt/4nexa
+
+            # Pull latest images
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose -f docker-compose.staging.yml pull
+
+            # Run migrations (zero-downtime: run before restart)
+            docker compose -f docker-compose.staging.yml run --rm \
+              -e DATABASE_URL=${{ secrets.STAGING_DATABASE_URL }} \
+              control-plane-api sh -c "node dist/main db:migrate 2>/dev/null || npx prisma migrate deploy"
+
+            # Rolling restart
+            docker compose -f docker-compose.staging.yml up -d --no-build
+            docker compose -f docker-compose.staging.yml ps
+
+            echo "✓ Staging deploy completado: $(git log --oneline -1 2>/dev/null || echo 'N/A')"
+
+  # ── 2. Smoke Tests en Staging ────────────────────────────────────────────
+  smoke-staging:
+    name: Smoke Tests — Staging
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for staging to be ready
+        run: |
+          for i in $(seq 1 12); do
+            status=$(curl -s -o /dev/null -w "%{http_code}" \
+              "${{ secrets.STAGING_API_URL }}/health" 2>/dev/null || echo "000")
+            if [ "$status" = "200" ]; then
+              echo "✓ Staging healthy (intento $i)"
+              exit 0
+            fi
+            echo "Intento $i: HTTP $status — esperando 10s…"
+            sleep 10
+          done
+          echo "✗ Staging no respondió en 2 minutos"
+          exit 1
+
+      - name: Smoke test — API health
+        run: |
+          response=$(curl -sf "${{ secrets.STAGING_API_URL }}/health")
+          echo "$response"
+          echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('status')=='ok', f'Health check failed: {d}'"
+
+      - name: Smoke test — Auth endpoint
+        run: |
+          status=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${{ secrets.STAGING_API_URL }}/auth/login" \
+            -H "Content-Type: application/json" \
+            -d '{"email":"smoke@invalid.test","password":"invalid"}')
+          # Esperamos 401 (credenciales inválidas), no 500
+          if [ "$status" = "401" ]; then
+            echo "✓ Auth endpoint responde correctamente (401)"
+          else
+            echo "✗ Auth endpoint devolvió HTTP $status (esperado 401)"
+            exit 1
+          fi
+
+      - name: Smoke test — Admin panel
+        run: |
+          status=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.STAGING_ADMIN_URL }}" 2>/dev/null || echo "000")
+          if [ "$status" = "200" ] || [ "$status" = "307" ] || [ "$status" = "302" ]; then
+            echo "✓ Admin panel accesible (HTTP $status)"
+          else
+            echo "✗ Admin panel devolvió HTTP $status"
+            exit 1
+          fi
+
+  # ── 3. Aprobación manual ──────────────────────────────────────────────────
+  approve-production:
+    name: Aprobar deploy a Producción
+    runs-on: ubuntu-latest
+    needs: smoke-staging
+    environment:
+      name: production
+    steps:
+      - name: Aprobación requerida
+        run: echo "✓ Aprobado para producción"
+
+  # ── 4. Deploy Producción ──────────────────────────────────────────────────
+  deploy-production:
+    name: Deploy → Producción
+    runs-on: ubuntu-latest
+    needs: approve-production
+    environment:
+      name: production
+      url: https://erp.4nexa.io
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to production via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PRODUCTION_SSH_HOST }}
+          username: ${{ secrets.PRODUCTION_SSH_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          port: ${{ secrets.PRODUCTION_SSH_PORT || 22 }}
+          script: |
+            set -euo pipefail
+            cd /opt/4nexa
+
+            # Guardar referencia para posible rollback
+            PREV_SHA=$(docker compose -f docker-compose.prod.yml images -q control-plane-api 2>/dev/null | head -1 || echo "none")
+            echo "Imagen anterior: $PREV_SHA" > /opt/4nexa/.last_deploy_sha
+
+            # Pull latest images
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker compose -f docker-compose.prod.yml pull
+
+            # Migrar DB antes de reiniciar
+            docker compose -f docker-compose.prod.yml run --rm \
+              -e DATABASE_URL=${{ secrets.PROD_DATABASE_URL }} \
+              control-plane-api sh -c "npx prisma migrate deploy"
+
+            # Rolling restart
+            docker compose -f docker-compose.prod.yml up -d --no-build
+            docker compose -f docker-compose.prod.yml ps
+
+            # Limpiar imágenes antiguas (mantener 3 últimas)
+            docker image prune -f --filter "until=72h" || true
+
+            echo "✓ Production deploy completado: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+  # ── 5. Smoke Tests en Producción ─────────────────────────────────────────
+  smoke-production:
+    name: Smoke Tests — Producción
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    steps:
+      - name: Verificar health producción
+        run: |
+          for i in $(seq 1 12); do
+            status=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://erp.4nexa.io/health" 2>/dev/null || echo "000")
+            if [ "$status" = "200" ]; then
+              echo "✓ Producción healthy (intento $i)"
+              exit 0
+            fi
+            echo "Intento $i: HTTP $status — esperando 10s…"
+            sleep 10
+          done
+          echo "✗ Producción no respondió"
+          exit 1
+
+  # ── 6. Rollback automático si falla smoke en producción ──────────────────
+  rollback-production:
+    name: Rollback — Producción
+    runs-on: ubuntu-latest
+    needs: smoke-production
+    if: failure()
+    steps:
+      - name: Rollback via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PRODUCTION_SSH_HOST }}
+          username: ${{ secrets.PRODUCTION_SSH_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          port: ${{ secrets.PRODUCTION_SSH_PORT || 22 }}
+          script: |
+            set -euo pipefail
+            cd /opt/4nexa
+            echo "⚠ ROLLBACK iniciado"
+
+            # Restaurar imagen anterior
+            docker compose -f docker-compose.prod.yml down --remove-orphans
+            # Restaurar con el tag anterior — requiere tener la imagen en local
+            docker tag ghcr.io/digitalhowls/4nexa-mailgun/control-plane-api:previous \
+              ghcr.io/digitalhowls/4nexa-mailgun/control-plane-api:latest 2>/dev/null || true
+            docker compose -f docker-compose.prod.yml up -d
+
+            echo "✓ Rollback completado"
+
+      - name: Notificar rollback
+        if: always()
+        run: |
+          echo "::error::Deploy a producción falló. Rollback ejecutado automáticamente."

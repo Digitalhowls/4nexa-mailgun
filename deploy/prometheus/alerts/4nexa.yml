@@ -1,0 +1,101 @@
+groups:
+  - name: 4nexa_api
+    rules:
+
+      # API caída
+      - alert: ApiDown
+        expr: up{job="control-plane-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Control Plane API no responde"
+          description: "El job {{ $labels.job }} lleva {{ $value }} minutos sin responder."
+
+      # Latencia P95 > 1s
+      - alert: ApiHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="control-plane-api"}[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latencia P95 de la API elevada"
+          description: "P95 = {{ $value | humanizeDuration }} en {{ $labels.route }}"
+
+      # Tasa de errores 5xx > 5%
+      - alert: ApiHighErrorRate
+        expr: |
+          rate(http_requests_total{job="control-plane-api", status=~"5.."}[5m])
+          /
+          rate(http_requests_total{job="control-plane-api"}[5m])
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Tasa de errores 5xx > 5%"
+          description: "{{ $value | humanizePercentage }} de errores en {{ $labels.route }}"
+
+  - name: 4nexa_infrastructure
+    rules:
+
+      # RAM > 90%
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Uso de RAM > 90%"
+          description: "Instancia {{ $labels.instance }} con {{ $value | humanizePercentage }} de RAM"
+
+      # Disco > 85%
+      - alert: DiskAlmostFull
+        expr: (1 - (node_filesystem_free_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disco raíz > 85% lleno"
+          description: "{{ $value | humanizePercentage }} usado en {{ $labels.instance }}"
+
+      # Redis caído
+      - alert: RedisDown
+        expr: up{job="redis-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis no responde"
+
+      # PostgreSQL caído
+      - alert: PostgresDown
+        expr: up{job="postgres-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL no responde"
+
+  - name: 4nexa_mail
+    rules:
+
+      # Reputación de nodo degradada
+      - alert: NodeReputationLow
+        expr: 4nexa_mailgun_node_reputation_score < 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Nodo con reputación baja"
+          description: "Nodo {{ $labels.node_id }} tiene score {{ $value }}"
+
+      # Cola BullMQ creciendo sin procesar
+      - alert: QueueBacklogHigh
+        expr: 4nexa_mailgun_queue_jobs_total{queue="system-events",state="waiting"} > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cola de trabajos acumulada"
+          description: "{{ $value }} trabajos en espera en la cola {{ $labels.queue }}"

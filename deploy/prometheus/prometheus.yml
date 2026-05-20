@@ -1,0 +1,75 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  scrape_timeout:      10s
+  external_labels:
+    environment: production
+    platform: 4nexa-mailgun
+
+# ── Reglas de alerta ──────────────────────────────────────────────────────────
+rule_files:
+  - /etc/prometheus/alerts/*.yml
+
+# ── Alertmanager (opcional — configurar si se usa) ────────────────────────────
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['alertmanager:9093']
+
+# ── Scrape configs ────────────────────────────────────────────────────────────
+scrape_configs:
+
+  # Prometheus se monitoriza a sí mismo
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Control Plane API — métricas de negocio y sistema
+  - job_name: control-plane-api
+    scheme: http
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['control-plane-api:3000']
+        labels:
+          service: control-plane-api
+
+  # Node Exporter — métricas del host (CPU, RAM, disco, red)
+  - job_name: node-exporter
+    scheme: http
+    metrics_path: /metrics
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: host
+
+  # cAdvisor — métricas de contenedores Docker
+  - job_name: cadvisor
+    scheme: http
+    metrics_path: /metrics
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: docker
+
+  # Redis Exporter
+  - job_name: redis-exporter
+    scheme: http
+    metrics_path: /metrics
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: redis
+
+  # Postgres Exporter
+  - job_name: postgres-exporter
+    scheme: http
+    metrics_path: /metrics
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: postgresql
