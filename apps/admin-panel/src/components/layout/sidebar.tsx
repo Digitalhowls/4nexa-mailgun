@@ -17,6 +17,13 @@ import {
   KeyRound,
   Siren,
   TrendingUp,
+  Bell,
+  Palette,
+  Archive,
+  Network,
+  BadgeCheck,
+  Sparkles,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +41,13 @@ const NAV_ITEMS = [
   { href: '/credentials', label: 'Credenciales', icon: KeyRound },
   { href: '/audit', label: 'Auditoría', icon: ClipboardList },
   { href: '/disaster-recovery', label: 'Disaster Recovery', icon: Siren },
+  { href: '/notifications', label: 'Notificaciones', icon: Bell },
+  { href: '/whitelabel', label: 'White-label', icon: Palette },
+  { href: '/archival', label: 'Archivado', icon: Archive },
+  { href: '/dns', label: 'DNS Orquestación', icon: Network },
+  { href: '/bimi', label: 'BIMI', icon: BadgeCheck },
+  { href: '/ai', label: 'AI Engine', icon: Sparkles },
+  { href: '/orizon', label: 'ORIZON', icon: BarChart3 },
 ];
 
 export function Sidebar() {
