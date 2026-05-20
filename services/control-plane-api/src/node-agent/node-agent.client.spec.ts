@@ -161,4 +161,62 @@ describe('NodeAgentClient', () => {
       });
     });
   });
+
+  // ─── mTLS path ──────────────────────────────────────────────────────────────
+
+  describe('mTLS — getMtlsAgent()', () => {
+    let mtlsClient: NodeAgentClient;
+    let fetchWithAgentSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      const mtlsConfig = {
+        get: jest.fn((key: string) => {
+          const map: Record<string, string> = {
+            NODE_AGENT_BASE_URL: 'https://agent.example.com',
+            NODE_AGENT_JWT_SECRET: 'secret',
+            NODE_AGENT_JWT_EXPIRES_IN: '5m',
+            NODE_AGENT_MTLS_CERT: '-----BEGIN CERTIFICATE-----\nMIIBfake...',
+            NODE_AGENT_MTLS_KEY: '-----BEGIN PRIVATE KEY-----\nMIIBfake...',
+            NODE_AGENT_MTLS_CA: '-----BEGIN CERTIFICATE-----\nMIIBca...',
+          };
+          return map[key] ?? '';
+        }),
+      } as unknown as import('@nestjs/config').ConfigService<any, true>;
+
+      const jwtService = { sign: jest.fn().mockReturnValue('mtls-token') } as unknown as import('@nestjs/jwt').JwtService;
+
+      mtlsClient = new NodeAgentClient(mtlsConfig, jwtService);
+
+      // Evitar la llamada real a https.request mockeando el método estático
+      fetchWithAgentSpy = jest
+        .spyOn(NodeAgentClient as any, 'fetchWithAgent')
+        .mockResolvedValue({
+          ok: true,
+          json: jest.fn().mockResolvedValue(makeOkResponse({ status: 'ok' })),
+          text: jest.fn().mockResolvedValue(''),
+        } as unknown as Response);
+    });
+
+    afterEach(() => {
+      fetchWithAgentSpy.mockRestore();
+    });
+
+    it('usa fetchWithAgent cuando están configuradas las variables mTLS', async () => {
+      await mtlsClient.call('node-mtls', 'health_check', {});
+
+      expect(fetchWithAgentSpy).toHaveBeenCalledTimes(1);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('reutiliza el mismo agente mTLS entre llamadas consecutivas', async () => {
+      await mtlsClient.call('node-mtls', 'health_check', {});
+      await mtlsClient.call('node-mtls', 'metrics_report', {});
+
+      // fetchWithAgent se llama dos veces con el mismo agent
+      expect(fetchWithAgentSpy).toHaveBeenCalledTimes(2);
+      const agent1 = fetchWithAgentSpy.mock.calls[0][2];
+      const agent2 = fetchWithAgentSpy.mock.calls[1][2];
+      expect(agent1).toBe(agent2);
+    });
+  });
 });

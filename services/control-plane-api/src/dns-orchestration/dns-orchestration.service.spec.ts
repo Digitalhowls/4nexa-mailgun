@@ -11,7 +11,7 @@ const mockPrisma = {
   node: { findUnique: jest.fn() },
 };
 const mockAudit = { log: jest.fn() };
-const mockEventBus = { emit: jest.fn() };
+const mockEventBus = { emit: jest.fn(), publish: jest.fn() };
 
 describe('DnsOrchestrationService', () => {
   let service: DnsOrchestrationService;
@@ -126,4 +126,122 @@ describe('DnsOrchestrationService', () => {
       expect(typeof result.dmarc).toBe('boolean');
     });
   });
-});
+
+  describe('getDnsStatus', () => {
+    it('lanza NotFoundException si el dominio no existe', async () => {
+      mockPrisma.domain.findFirst.mockResolvedValue(null);
+      await expect(service.getDnsStatus('d1', 't1')).rejects.toThrow(NotFoundException);
+    });
+
+    it('retorna el estado DNS del dominio con proveedor configurado', async () => {
+      const now = new Date();
+      mockPrisma.domain.findFirst.mockResolvedValue({
+        id: 'd1',
+        domain: 'example.com',
+        mxStatus: 'VALID',
+        spfStatus: 'VALID',
+        dkimStatus: 'VALID',
+        dmarcStatus: 'INVALID',
+        lastDnsCheckAt: now,
+        dnsProvider: { provider: 'CLOUDFLARE' },
+      });
+
+      const result = await service.getDnsStatus('d1', 't1');
+
+      expect(result.domain).toBe('example.com');
+      expect(result.provider).toBe('CLOUDFLARE');
+      expect(result.mx).toBe('VALID');
+      expect(result.dmarc).toBe('INVALID');
+      expect(result.lastCheckAt).toBe(now);
+    });
+
+    it('retorna MANUAL como proveedor cuando no hay dnsProvider', async () => {
+      mockPrisma.domain.findFirst.mockResolvedValue({
+        id: 'd1',
+        domain: 'manual.com',
+        mxStatus: 'UNCHECKED',
+        spfStatus: 'UNCHECKED',
+        dkimStatus: 'UNCHECKED',
+        dmarcStatus: 'UNCHECKED',
+        lastDnsCheckAt: null,
+        dnsProvider: null,
+      });
+
+      const result = await service.getDnsStatus('d1', 't1');
+
+      expect(result.provider).toBe('MANUAL');
+    });
+  });
+
+  describe('provisionDomain — MANUAL provider', () => {
+    it('lanza BadRequestException si el proveedor es MANUAL', async () => {
+      mockPrisma.domain.findFirst.mockResolvedValue({
+        id: 'd1', domain: 'example.com', tenantId: 't1', nodeId: null,
+        dkimSelector: '4nexa', dkimPublicKey: 'pub',
+        dnsProvider: { id: 'p1', provider: 'MANUAL', encApiKey: 'enc', encApiSecret: null, zoneId: null },
+      });
+      await expect(service.provisionDomain('d1', 't1', 'u1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('gestiona errores individuales de registro DNS sin lanzar', async () => {
+      // Usar el método decrypt del servicio — cifrar a mano con la misma clave de test
+      const { createCipheriv, randomBytes } = await import('crypto');
+      const encKey = Buffer.from('a'.repeat(64), 'hex');
+      const iv = randomBytes(12);
+      const cipher = createCipheriv('aes-256-gcm', encKey, iv);
+      const ct = Buffer.concat([cipher.update('test-api-key', 'utf8'), cipher.final()]);
+      const tag = cipher.getAuthTag();
+      const encApiKey = `${iv.toString('hex')}:${tag.toString('hex')}:${ct.toString('hex')}`;
+
+      mockPrisma.domain.findFirst.mockResolvedValue({
+        id: 'd1', domain: 'example.com', tenantId: 't1', nodeId: null,
+        dkimSelector: '4nexa', dkimPublicKey: 'pub',
+        dnsProvider: { id: 'p1', provider: 'CLOUDFLARE', encApiKey, encApiSecret: null, zoneId: 'z1' },
+      });
+      mockPrisma.node.findUnique.mockResolvedValue(null);
+      global.fetch = jest.fn().mockRejectedValue(new Error('Network error')) as any;
+
+      const result = await service.provisionDomain('d1', 't1', 'u1');
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.records.every((r) => r.created === false)).toBe(true);
+    });
+  });
+
+  describe('checkDnsDrift()', () => {
+    it('emite evento domain.dns_drift_detected si algún status es INVALID', async () => {
+      mockPrisma.domain.findMany.mockResolvedValue([
+        {
+          id: 'd1', domain: 'drifted.com', tenantId: 't1',
+          mxStatus: 'VALID', spfStatus: 'INVALID', dkimStatus: 'VALID', dmarcStatus: 'VALID',
+          dnsProvider: { provider: 'CLOUDFLARE' },
+        },
+      ]);
+
+      await service.checkDnsDrift();
+
+      expect(mockEventBus.publish).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'domain.dns_drift_detected' }),
+      );
+    });
+
+    it('no emite evento si todos los status son VALID', async () => {
+      mockPrisma.domain.findMany.mockResolvedValue([
+        {
+          id: 'd2', domain: 'ok.com', tenantId: 't1',
+          mxStatus: 'VALID', spfStatus: 'VALID', dkimStatus: 'VALID', dmarcStatus: 'VALID',
+          dnsProvider: { provider: 'CLOUDFLARE' },
+        },
+      ]);
+
+      await service.checkDnsDrift();
+
+      expect(mockEventBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('maneja lista vacía de dominios activos sin errores', async () => {
+      mockPrisma.domain.findMany.mockResolvedValue([]);
+
+      await expect(service.checkDnsDrift()).resolves.not.toThrow();
+    });
+  });});

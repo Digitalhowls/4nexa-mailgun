@@ -142,5 +142,96 @@ describe('NotificationsService', () => {
       expect(result.sent).toBe(2);
       expect(result.errors).toHaveLength(0);
     });
+
+    it('despacha WEBHOOK sin errores', async () => {
+      mockPrisma.notificationChannel.findMany.mockResolvedValue([
+        { id: 'ch3', type: 'WEBHOOK', config: { url: 'https://my-server.io/hook' } },
+      ]);
+
+      const result = await service.sendNotification('t1', {
+        type: 'WEBHOOK' as any,
+        subject: 'Hook',
+        body: 'payload',
+      });
+
+      expect(result.sent).toBe(1);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('despacha SMS sin errores', async () => {
+      mockPrisma.notificationChannel.findMany.mockResolvedValue([
+        { id: 'ch4', type: 'SMS', config: { phone: '+34600000000' } },
+      ]);
+
+      const result = await service.sendNotification('t1', {
+        type: 'SMS' as any,
+        subject: 'Alerta SMS',
+        body: 'mensaje',
+      });
+
+      expect(result.sent).toBe(1);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('acumula errores si dispatch lanza y no incrementa sent', async () => {
+      // Forzar tipo desconocido para provocar el default de dispatch
+      mockPrisma.notificationChannel.findMany.mockResolvedValue([
+        { id: 'ch5', type: 'UNKNOWN_TYPE' as any, config: {} },
+      ]);
+
+      const result = await service.sendNotification('t1', {
+        type: 'EMAIL' as any,
+        subject: 'x',
+        body: 'y',
+      });
+
+      expect(result.sent).toBe(0);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toContain('ch5');
+    });
+  });
+
+  describe('validateChannelConfig (via createChannel)', () => {
+    it('lanza BadRequestException si falta url para WEBHOOK', async () => {
+      await expect(
+        service.createChannel('t1', { type: 'WEBHOOK' as any, config: {}, name: 'wh' }, 'u1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('crea canal WEBHOOK con config válida', async () => {
+      const channel = {
+        id: 'ch6', tenantId: 't1', type: 'WEBHOOK', name: 'mi-hook',
+        config: { url: 'https://hooks.io' }, events: [], isActive: true,
+      };
+      mockPrisma.notificationChannel.create.mockResolvedValue(channel);
+
+      const result = await service.createChannel(
+        't1',
+        { type: 'WEBHOOK' as any, config: { url: 'https://hooks.io' }, name: 'mi-hook' },
+        'u1',
+      );
+      expect(result.type).toBe('WEBHOOK');
+    });
+
+    it('lanza BadRequestException si falta phone para SMS', async () => {
+      await expect(
+        service.createChannel('t1', { type: 'SMS' as any, config: {}, name: 'sms' }, 'u1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('crea canal SMS con config válida', async () => {
+      const channel = {
+        id: 'ch7', tenantId: 't1', type: 'SMS', name: 'sms-canal',
+        config: { phone: '+34600000000' }, events: [], isActive: true,
+      };
+      mockPrisma.notificationChannel.create.mockResolvedValue(channel);
+
+      const result = await service.createChannel(
+        't1',
+        { type: 'SMS' as any, config: { phone: '+34600000000' }, name: 'sms-canal' },
+        'u1',
+      );
+      expect(result.type).toBe('SMS');
+    });
   });
 });
