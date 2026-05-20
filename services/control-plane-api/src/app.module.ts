@@ -26,6 +26,17 @@ import { AntispamModule } from './antispam/antispam.module';
 import { DisasterRecoveryModule } from './disaster-recovery/disaster-recovery.module';
 import { BrainModule } from './brain/brain.module';
 import { MigrationModule } from './migration/migration.module';
+// v3 modules
+import { ApiKeysModule } from './api-keys/api-keys.module';
+import { DnsOrchestrationModule } from './dns-orchestration/dns-orchestration.module';
+import { WebmailModule } from './webmail/webmail.module';
+import { GroupwareModule } from './groupware/groupware.module';
+import { AiEngineModule } from './ai-engine/ai-engine.module';
+import { ArchivalModule } from './archival/archival.module';
+import { BimiModule } from './bimi/bimi.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { OrizonModule } from './orizon/orizon.module';
+import { WhitelabelModule } from './whitelabel/whitelabel.module';
 
 @Module({
   imports: [
@@ -65,6 +76,17 @@ import { MigrationModule } from './migration/migration.module';
     DisasterRecoveryModule,
     BrainModule,
     MigrationModule,
+    // v3
+    ApiKeysModule,
+    DnsOrchestrationModule,
+    WebmailModule,
+    GroupwareModule,
+    AiEngineModule,
+    ArchivalModule,
+    BimiModule,
+    NotificationsModule,
+    OrizonModule,
+    WhitelabelModule,
   ],
   providers: [
     {

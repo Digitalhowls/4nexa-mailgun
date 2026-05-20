@@ -15,3 +15,4 @@ export * from './antispam.validator';
 export * from './disaster-recovery.validator';
 export * from './brain.validator';
 export * from './migration.validator';
+export * from './v3.validator';

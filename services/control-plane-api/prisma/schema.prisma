@@ -9,7 +9,7 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  extensions = [pgcrypto, pg_trgm]
+  extensions = [pgcrypto, pg_trgm, vector]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -225,6 +225,8 @@ model Tenant {
   trustScore    Int           @default(100)
   planId        String?       @db.Uuid
   nodeId        String?       @db.Uuid
+  // v3
+  origoCustomerId String?     @db.VarChar(100)
   createdAt     DateTime      @default(now()) @db.Timestamptz
   updatedAt     DateTime      @updatedAt @db.Timestamptz
 
@@ -234,7 +236,14 @@ model Tenant {
   mailboxes Mailbox[]
   aliases   Alias[]
   users     User[]
-  migrationJobs MigrationJob[]
+  migrationJobs        MigrationJob[]
+  // v3 relations
+  apiKeys              ApiKey[]
+  dnsProviders         DnsProvider[]
+  whitelabelConfig     WhitelabelConfig?
+  archivalPolicy       ArchivalPolicy?
+  notificationChannels NotificationChannel[]
+  extractedInvoices    ExtractedInvoice[]
 
   @@index([slug])
   @@index([status])
@@ -272,6 +281,10 @@ model Domain {
   mailboxes      Mailbox[]
   aliases        Alias[]
   antispamPolicy AntispamPolicy?
+  // v3 relations
+  dnsProvider    DnsProvider?     @relation(fields: [dnsProviderId], references: [id])
+  dnsProviderId  String?          @db.Uuid
+  bimiConfig     BimiConfig?
 
   @@unique([tenantId, domain])
   @@index([domain])
@@ -324,6 +337,9 @@ model Mailbox {
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   domain Domain @relation(fields: [domainId], references: [id])
+  // v3 relations
+  calendarConfig    CalendarConfig?
+  extractedInvoices ExtractedInvoice[]
 
   @@unique([domainId, localPart])
   @@index([tenantId])
@@ -544,6 +560,8 @@ model MemoryCell {
   /// userId o "system" — trazabilidad de escritura
   createdBy  String          @default("system") @db.VarChar(100)
   version    Int             @default(1)
+  /// v3: embedding pgvector (1536 dims — compatible OpenAI ada-002 / nomic-embed)
+  embedding  Unsupported("vector(1536)")?
 
   @@unique([tenantId, scope, key])
   @@index([tenantId])
@@ -572,6 +590,69 @@ enum MigrationStatus {
   COMPLETED
   FAILED
   CANCELLED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v3 Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum DnsProviderType {
+  CLOUDFLARE
+  HETZNER
+  OVH
+  ROUTE53
+  POWERDNS
+  MANUAL
+}
+
+enum ApiKeyScope {
+  READ_TENANTS
+  WRITE_TENANTS
+  READ_DOMAINS
+  WRITE_DOMAINS
+  READ_MAILBOXES
+  WRITE_MAILBOXES
+  READ_ALIASES
+  WRITE_ALIASES
+  READ_BILLING
+  WRITE_BILLING
+  READ_BACKUPS
+  EXEC_BACKUPS
+  READ_AUDIT
+  READ_METRICS
+  EXEC_MIGRATIONS
+  EXEC_DNS
+  ADMIN_ALL
+}
+
+enum CalendarShareType {
+  PRIVATE
+  TENANT_READ
+  TENANT_WRITE
+  PUBLIC_READ
+}
+
+enum ArchivalStorageType {
+  LOCAL_S3
+  EXTERNAL_S3
+  GLACIER
+  AZURE_BLOB
+}
+
+enum InvoiceExtractionStatus {
+  PENDING
+  EXTRACTED
+  FAILED
+  REVIEWED
+  EXPORTED
+}
+
+enum NotificationType {
+  EMAIL
+  WEBHOOK
+  SLACK
+  TEAMS
+  SMS
 }
 
 model MigrationJob {
@@ -611,4 +692,187 @@ model MigrationJob {
   @@index([status])
   @@index([provider])
   @@map("migration_jobs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v3 Models
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ApiKey — autenticación para API pública (§12)
+model ApiKey {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String       @db.Uuid
+  name        String       @db.VarChar(100)
+  keyHash     String       @unique @db.VarChar(256)
+  keyPrefix   String       @db.VarChar(8)
+  scopes      ApiKeyScope[]
+  rateLimit   Int          @default(1000)
+  lastUsedAt  DateTime?    @db.Timestamptz
+  expiresAt   DateTime?    @db.Timestamptz
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now()) @db.Timestamptz
+  createdBy   String       @db.VarChar(100)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([keyPrefix])
+  @@map("api_keys")
+}
+
+// DnsProvider — proveedor DNS conectado (§11)
+model DnsProvider {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String          @db.Uuid
+  provider     DnsProviderType
+  encApiKey    String          @db.Text
+  encApiSecret String?         @db.Text
+  zoneId       String?         @db.VarChar(100)
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now()) @db.Timestamptz
+  updatedAt    DateTime        @updatedAt @db.Timestamptz
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id])
+  domains Domain[]
+
+  @@index([tenantId])
+  @@map("dns_providers")
+}
+
+// WhitelabelConfig — configuración white-label por tenant (§13)
+model WhitelabelConfig {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @unique @db.Uuid
+  brandName     String   @db.VarChar(100)
+  brandDomain   String   @unique @db.VarChar(253)
+  logoUrl       String?  @db.VarChar(512)
+  primaryColor  String   @default("#3B82F6") @db.VarChar(7)
+  accentColor   String   @default("#10B981") @db.VarChar(7)
+  supportEmail  String?  @db.VarChar(254)
+  customCss     String?  @db.Text
+  smtpFromName  String?  @db.VarChar(100)
+  smtpFromEmail String?  @db.VarChar(254)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  updatedAt     DateTime @updatedAt @db.Timestamptz
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("whitelabel_configs")
+}
+
+// CalendarConfig — configuración SOGo/CalDAV por buzón (§10)
+model CalendarConfig {
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mailboxId  String            @unique @db.Uuid
+  enabled    Boolean           @default(true)
+  easEnabled Boolean           @default(false)
+  shareType  CalendarShareType @default(PRIVATE)
+  createdAt  DateTime          @default(now()) @db.Timestamptz
+  updatedAt  DateTime          @updatedAt @db.Timestamptz
+
+  mailbox Mailbox @relation(fields: [mailboxId], references: [id])
+
+  @@map("calendar_configs")
+}
+
+// ArchivalPolicy — política de retención y archivado legal (§15)
+model ArchivalPolicy {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String              @unique @db.Uuid
+  retentionYears  Int                 @default(3)
+  autoDeleteAfter Boolean             @default(false)
+  encryptArchive  Boolean             @default(true)
+  storageBackend  ArchivalStorageType @default(LOCAL_S3)
+  isActive        Boolean             @default(true)
+  createdAt       DateTime            @default(now()) @db.Timestamptz
+  updatedAt       DateTime            @updatedAt @db.Timestamptz
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  legalHolds LegalHold[]
+
+  @@map("archival_policies")
+}
+
+// LegalHold — congelación de buzones durante investigación (§15)
+model LegalHold {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @db.Uuid
+  archivalPolicyId String    @db.Uuid
+  mailboxIds       String[]
+  reason           String    @db.Text
+  requestedBy      String    @db.VarChar(100)
+  startDate        DateTime  @default(now()) @db.Timestamptz
+  endDate          DateTime? @db.Timestamptz
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @db.Timestamptz
+
+  archivalPolicy ArchivalPolicy @relation(fields: [archivalPolicyId], references: [id])
+
+  @@index([tenantId])
+  @@index([isActive])
+  @@map("legal_holds")
+}
+
+// BimiConfig — configuración BIMI por dominio (§16)
+model BimiConfig {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  domainId   String    @unique @db.Uuid
+  svgUrl     String    @db.VarChar(512)
+  vmcUrl     String?   @db.VarChar(512)
+  isActive   Boolean   @default(false)
+  verified   Boolean   @default(false)
+  verifiedAt DateTime? @db.Timestamptz
+  createdAt  DateTime  @default(now()) @db.Timestamptz
+  updatedAt  DateTime  @updatedAt @db.Timestamptz
+
+  domain Domain @relation(fields: [domainId], references: [id])
+
+  @@map("bimi_configs")
+}
+
+// NotificationChannel — canales de notificación por tenant (§18)
+model NotificationChannel {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String           @db.Uuid
+  name      String           @db.VarChar(100)
+  type      NotificationType
+  config    Json
+  events    String[]
+  isActive  Boolean          @default(true)
+  createdAt DateTime         @default(now()) @db.Timestamptz
+  updatedAt DateTime         @updatedAt @db.Timestamptz
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([type])
+  @@map("notification_channels")
+}
+
+// ExtractedInvoice — facturas extraídas por IA de correos (§7)
+model ExtractedInvoice {
+  id            String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String                  @db.Uuid
+  mailboxId     String                  @db.Uuid
+  messageId     String                  @db.VarChar(512)
+  invoiceNumber String?                 @db.VarChar(100)
+  issuerName    String?                 @db.VarChar(200)
+  issuerTaxId   String?                 @db.VarChar(50)
+  totalAmount   Decimal?                @db.Decimal(12, 2)
+  vatAmount     Decimal?                @db.Decimal(12, 2)
+  currency      String                  @default("EUR") @db.VarChar(3)
+  invoiceDate   DateTime?               @db.Timestamptz
+  confidence    Float                   @default(0)
+  status        InvoiceExtractionStatus @default(PENDING)
+  createdAt     DateTime                @default(now()) @db.Timestamptz
+  updatedAt     DateTime                @updatedAt @db.Timestamptz
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  mailbox Mailbox @relation(fields: [mailboxId], references: [id])
+
+  @@index([tenantId])
+  @@index([mailboxId])
+  @@index([status])
+  @@map("extracted_invoices")
 }

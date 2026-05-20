@@ -1,0 +1,7 @@
+-- Migration v3: enums
+CREATE TYPE "DnsProviderType" AS ENUM ('CLOUDFLARE', 'HETZNER', 'OVH', 'ROUTE53', 'POWERDNS', 'MANUAL');
+CREATE TYPE "ApiKeyScope" AS ENUM ('FULL', 'READ_ONLY', 'SEND_ONLY', 'WEBHOOKS');
+CREATE TYPE "CalendarShareType" AS ENUM ('PRIVATE', 'PUBLIC', 'INTERNAL');
+CREATE TYPE "ArchivalStorageType" AS ENUM ('LOCAL', 'S3', 'AZURE_BLOB');
+CREATE TYPE "InvoiceExtractionStatus" AS ENUM ('PENDING', 'PROCESSING', 'DONE', 'FAILED');
+CREATE TYPE "NotificationType" AS ENUM ('EMAIL', 'SLACK', 'WEBHOOK', 'SMS');
