@@ -180,3 +180,153 @@ describe('NodesService.getActiveCert()', () => {
     expect(result).not.toHaveProperty('agentKeyPem');
   });
 });
+
+// ─── CRUD básico ──────────────────────────────────────────────────────────────
+
+import {
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
+
+const NODE_ID = FAKE_NODE.id;
+
+function makeCrudDeps(opts: { nodeExists?: boolean; hostnameConflict?: boolean } = {}) {
+  const { nodeExists = true, hostnameConflict = false } = opts;
+  const prisma = {
+    node: {
+      findUnique: jest.fn().mockResolvedValue(hostnameConflict ? FAKE_NODE : (nodeExists ? FAKE_NODE : null)),
+      findMany: jest.fn().mockResolvedValue([FAKE_NODE]),
+      create: jest.fn().mockResolvedValue(FAKE_NODE),
+      update: jest.fn().mockResolvedValue(FAKE_NODE),
+      count: jest.fn().mockResolvedValue(1),
+    },
+    nodeCertificate: {
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      create: jest.fn().mockResolvedValue({}),
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
+  } as unknown as PrismaService;
+
+  const agentClient = {
+    healthCheck: jest.fn().mockResolvedValue({ data: { overallStatus: 'healthy', diskUsedPercent: 30 } }),
+  } as unknown as NodeAgentClient;
+
+  const configEngine = {
+    applyNodeConfig: jest.fn().mockResolvedValue({ configVersion: 1, appliedSections: ['postfix'] }),
+    validateNodeConfig: jest.fn().mockResolvedValue({ valid: true }),
+  } as unknown as ConfigEngineService;
+
+  const pki = {
+    isEnabled: jest.fn().mockReturnValue(true),
+    enrollNode: jest.fn().mockResolvedValue(MOCK_ENROLLMENT),
+    getCaCertPem: jest.fn().mockReturnValue(''),
+  } as unknown as PkiService;
+
+  const eventBus = { publish: jest.fn().mockResolvedValue(undefined) } as unknown as EventBusService;
+
+  const svc = new NodesService(prisma, agentClient, configEngine, pki, eventBus);
+  return { svc, prisma, agentClient, configEngine };
+}
+
+describe('NodesService.create()', () => {
+  it('crea un nodo correctamente', async () => {
+    const { svc, prisma } = makeCrudDeps({ hostnameConflict: false });
+    (prisma.node.findUnique as jest.Mock).mockResolvedValue(null);
+    const result = await svc.create({ hostname: 'node01.empresa.com', ipV4: '10.0.0.1', provider: 'hetzner', region: 'eu-central', maxTenants: 50 });
+    expect(result).toMatchObject({ id: NODE_ID });
+  });
+
+  it('lanza ConflictException si el hostname ya existe', async () => {
+    const { svc } = makeCrudDeps({ hostnameConflict: true });
+    await expect(svc.create({ hostname: 'node01.empresa.com', ipV4: '10.0.0.1', provider: 'hetzner', region: 'eu-central', maxTenants: 50 })).rejects.toThrow(ConflictException);
+  });
+});
+
+describe('NodesService.findAll()', () => {
+  it('devuelve lista paginada de nodos', async () => {
+    const { svc } = makeCrudDeps();
+    const result = await svc.findAll({ page: 1, pageSize: 10 });
+    expect(result).toMatchObject({ items: [FAKE_NODE], total: 1 });
+  });
+});
+
+describe('NodesService.findOne()', () => {
+  it('devuelve el nodo si existe', async () => {
+    const { svc } = makeCrudDeps();
+    const result = await svc.findOne(NODE_ID);
+    expect(result.id).toBe(NODE_ID);
+  });
+
+  it('lanza NotFoundException si no existe', async () => {
+    const { svc } = makeCrudDeps({ nodeExists: false });
+    await expect(svc.findOne('no-existe')).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('NodesService.update()', () => {
+  it('actualiza el nodo correctamente', async () => {
+    const { svc } = makeCrudDeps();
+    const result = await svc.update(NODE_ID, { maxTenants: 100 });
+    expect(result).toMatchObject({ id: NODE_ID });
+  });
+});
+
+describe('NodesService.setMaintenance()', () => {
+  it('activa modo mantenimiento en nodo ACTIVE', async () => {
+    const { svc, prisma } = makeCrudDeps();
+    (prisma.node.update as jest.Mock).mockResolvedValue({ ...FAKE_NODE, status: 'MAINTENANCE' });
+    const result = await svc.setMaintenance(NODE_ID, true);
+    expect(result.status).toBe('MAINTENANCE');
+  });
+
+  it('lanza BadRequestException en nodo OFFLINE', async () => {
+    const { svc, prisma } = makeCrudDeps();
+    (prisma.node.findUnique as jest.Mock).mockResolvedValue({ ...FAKE_NODE, status: 'OFFLINE' });
+    await expect(svc.setMaintenance(NODE_ID, true)).rejects.toThrow(BadRequestException);
+  });
+});
+
+describe('NodesService.pushConfig()', () => {
+  it('empuja configuración a nodo ACTIVE', async () => {
+    const { svc } = makeCrudDeps();
+    const result = await svc.pushConfig(NODE_ID);
+    expect(result).toMatchObject({ configVersion: 1 });
+  });
+
+  it('lanza BadRequestException para nodo OFFLINE', async () => {
+    const { svc, prisma } = makeCrudDeps();
+    (prisma.node.findUnique as jest.Mock).mockResolvedValue({ ...FAKE_NODE, status: 'OFFLINE' });
+    await expect(svc.pushConfig(NODE_ID)).rejects.toThrow(BadRequestException);
+  });
+});
+
+describe('NodesService.validateConfig()', () => {
+  it('valida la configuración del nodo', async () => {
+    const { svc } = makeCrudDeps();
+    const result = await svc.validateConfig(NODE_ID);
+    expect(result).toMatchObject({ valid: true });
+  });
+});
+
+describe('NodesService.reportAgentPing()', () => {
+  it('registra ping del agente y actualiza scores', async () => {
+    const { svc, prisma } = makeCrudDeps();
+    (prisma.node.update as jest.Mock).mockResolvedValue({ ...FAKE_NODE, reputationScore: 100 });
+    const result = await svc.reportAgentPing(NODE_ID);
+    expect(result.reputationScore).toBe(100);
+  });
+
+  it('emite evento node.unhealthy si el agente reporta degradado', async () => {
+    const { prisma } = makeCrudDeps();
+    const eventBus = { publish: jest.fn().mockResolvedValue(undefined) } as unknown as EventBusService;
+    const agentClient = {
+      healthCheck: jest.fn().mockResolvedValue({ data: { overallStatus: 'degraded', diskUsedPercent: 80 } }),
+    } as unknown as NodeAgentClient;
+    const configEngine = { applyNodeConfig: jest.fn(), validateNodeConfig: jest.fn() } as unknown as ConfigEngineService;
+    const pki = { isEnabled: jest.fn().mockReturnValue(true), enrollNode: jest.fn(), getCaCertPem: jest.fn() } as unknown as PkiService;
+    const svc2 = new NodesService(prisma, agentClient, configEngine, pki, eventBus);
+    (prisma.node.update as jest.Mock).mockResolvedValue({ ...FAKE_NODE, reputationScore: 60 });
+    await svc2.reportAgentPing(NODE_ID);
+    expect((eventBus as any).publish).toHaveBeenCalledWith(expect.objectContaining({ type: 'node.unhealthy' }));
+  });
+});

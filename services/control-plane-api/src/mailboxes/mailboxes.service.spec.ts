@@ -157,5 +157,154 @@ describe('MailboxesService', () => {
         NotFoundException,
       );
     });
+
+    it('retorna el buzón cuando existe', async () => {
+      const fake = {
+        id: 'mailbox-001',
+        tenantId: 'tenant-001',
+        domainId: 'domain-001',
+        localPart: 'alice',
+        status: 'ACTIVE',
+        quotaBytes: BigInt(1073741824),
+        usedBytes: BigInt(0),
+        forcePasswordReset: false,
+        lastLoginAt: null,
+        suspendedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        domain: { domain: 'example.com' },
+      };
+      (prisma.mailbox.findFirst as jest.Mock).mockResolvedValue(fake);
+      const result = await service.findOne('mailbox-001');
+      expect(result.id).toBe('mailbox-001');
+    });
+  });
+
+  // ─── update() ─────────────────────────────────────────────────────────────
+
+  describe('update()', () => {
+    const fakeMailbox = {
+      id: 'mailbox-001',
+      tenantId: 'tenant-001',
+      domainId: 'domain-001',
+      localPart: 'alice',
+      status: 'ACTIVE',
+      quotaBytes: BigInt(1073741824),
+      usedBytes: BigInt(0),
+      forcePasswordReset: false,
+      lastLoginAt: null,
+      suspendedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      domain: { domain: 'example.com' },
+    };
+
+    it('actualiza el buzón correctamente', async () => {
+      (prisma.mailbox.findFirst as jest.Mock).mockResolvedValue(fakeMailbox);
+      (prisma.mailbox.update as jest.Mock).mockResolvedValue({ ...fakeMailbox, status: 'SUSPENDED', suspendedAt: new Date() });
+
+      const result = await service.update('mailbox-001', { status: 'SUSPENDED' } as any);
+      expect(prisma.mailbox.update).toHaveBeenCalled();
+      expect(result.status).toBe('SUSPENDED');
+    });
+
+    it('publica evento mailbox.suspended al suspender', async () => {
+      const eb = makeEventBus();
+      const svc = new MailboxesService(prisma, eb);
+      (prisma.mailbox.findFirst as jest.Mock).mockResolvedValue(fakeMailbox);
+      (prisma.mailbox.update as jest.Mock).mockResolvedValue({ ...fakeMailbox, status: 'SUSPENDED', suspendedAt: new Date() });
+
+      await svc.update('mailbox-001', { status: 'SUSPENDED' } as any);
+      expect((eb as any).publish).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'mailbox.suspended' }),
+      );
+    });
+  });
+
+  // ─── resetPassword() ──────────────────────────────────────────────────────
+
+  describe('resetPassword()', () => {
+    it('actualiza el hash de contraseña', async () => {
+      const fake = {
+        id: 'mailbox-001',
+        tenantId: 'tenant-001',
+        domainId: 'domain-001',
+        localPart: 'alice',
+        status: 'ACTIVE',
+        quotaBytes: BigInt(1073741824),
+        usedBytes: BigInt(0),
+        forcePasswordReset: false,
+        lastLoginAt: null,
+        suspendedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        domain: { domain: 'example.com' },
+      };
+      (prisma.mailbox.findFirst as jest.Mock).mockResolvedValue(fake);
+      (prisma.mailbox.update as jest.Mock).mockResolvedValue({ id: 'mailbox-001', updatedAt: new Date() });
+
+      const result = await service.resetPassword('mailbox-001', { newPassword: 'NewPass123!', forcePasswordReset: false });
+      expect(prisma.mailbox.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ passwordHash: '$argon2id$mocked-hash' }),
+        }),
+      );
+      expect(result.id).toBe('mailbox-001');
+    });
+  });
+
+  // ─── softDelete() ─────────────────────────────────────────────────────────
+
+  describe('softDelete()', () => {
+    it('marca el buzón como DELETED', async () => {
+      const fake = {
+        id: 'mailbox-001',
+        tenantId: 'tenant-001',
+        domainId: 'domain-001',
+        localPart: 'alice',
+        status: 'ACTIVE',
+        quotaBytes: BigInt(1073741824),
+        usedBytes: BigInt(0),
+        forcePasswordReset: false,
+        lastLoginAt: null,
+        suspendedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        domain: { domain: 'example.com' },
+      };
+      (prisma.mailbox.findFirst as jest.Mock).mockResolvedValue(fake);
+      (prisma.mailbox.update as jest.Mock).mockResolvedValue({ ...fake, status: 'DELETED', deletedAt: new Date() });
+
+      await service.softDelete('mailbox-001');
+      expect(prisma.mailbox.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'DELETED' }) }),
+      );
+    });
+  });
+
+  // ─── getQuotaInfo() ───────────────────────────────────────────────────────
+
+  describe('getQuotaInfo()', () => {
+    it('calcula el porcentaje de uso de cuota', async () => {
+      const fake = {
+        id: 'mailbox-001',
+        tenantId: 'tenant-001',
+        domainId: 'domain-001',
+        localPart: 'alice',
+        status: 'ACTIVE',
+        quotaBytes: BigInt(1073741824),
+        usedBytes: BigInt(536870912),  // 50% de 1GB
+        forcePasswordReset: false,
+        lastLoginAt: null,
+        suspendedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        domain: { domain: 'example.com' },
+      };
+      (prisma.mailbox.findFirst as jest.Mock).mockResolvedValue(fake);
+      const result = await service.getQuotaInfo('mailbox-001');
+      expect(result.usedPercent).toBe(50);
+      expect(result.id).toBe('mailbox-001');
+    });
   });
 });

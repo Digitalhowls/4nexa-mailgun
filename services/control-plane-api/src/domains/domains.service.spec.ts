@@ -1,4 +1,4 @@
-import { NotFoundException, ConflictException } from '@nestjs/common';
+import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DomainsService } from './domains.service';
 import type { PrismaService } from '../prisma/prisma.service';
@@ -19,6 +19,9 @@ function makePrisma(): PrismaService {
       count: jest.fn().mockResolvedValue(0),
       create: jest.fn(),
       update: jest.fn(),
+    },
+    mailbox: {
+      count: jest.fn().mockResolvedValue(0),
     },
   } as unknown as PrismaService;
 }
@@ -126,6 +129,122 @@ describe('DomainsService', () => {
     it('lanza NotFoundException si el dominio no existe', async () => {
       (prisma.domain.findFirst as jest.Mock).mockResolvedValue(null);
       await expect(service.findOne('nonexistent-id')).rejects.toThrow(NotFoundException);
+    });
+
+    it('retorna el dominio cuando existe', async () => {
+      const fake = { id: 'd1', domain: 'example.com', status: 'ACTIVE' };
+      (prisma.domain.findFirst as jest.Mock).mockResolvedValue(fake);
+      const result = await service.findOne('d1');
+      expect(result.id).toBe('d1');
+    });
+  });
+
+  // ─── update() ─────────────────────────────────────────────────────────────
+
+  describe('update()', () => {
+    it('actualiza el dominio correctamente', async () => {
+      const fake = { id: 'd1', domain: 'example.com', status: 'PENDING_DNS' };
+      (prisma.domain.findFirst as jest.Mock).mockResolvedValue(fake);
+      (prisma.domain.update as jest.Mock).mockResolvedValue({ ...fake, status: 'ACTIVE' });
+      const result = await service.update('d1', { status: 'ACTIVE' } as any);
+      expect(prisma.domain.update).toHaveBeenCalled();
+      expect(result.status).toBe('ACTIVE');
+    });
+  });
+
+  // ─── verifyDns() ──────────────────────────────────────────────────────────
+
+  describe('verifyDns()', () => {
+    const fakeDomain = {
+      id: 'd1',
+      domain: 'example.com',
+      tenantId: 'tenant-1',
+      status: 'PENDING_DNS',
+      dkimSelector: 'mail2026',
+      dkimPublicKey: 'pubkey-base64',
+      verifiedAt: null,
+    };
+
+    const dnsOkResult = {
+      domainId: 'd1',
+      domain: 'example.com',
+      checkedAt: new Date(),
+      allPassed: true,
+      mx: { type: 'MX', status: 'VALID', found: null, expected: 'MX', message: null },
+      spf: { type: 'SPF', status: 'VALID', found: null, expected: 'SPF', message: null },
+      dkim: { type: 'DKIM', status: 'VALID', found: null, expected: 'DKIM', message: null },
+      dmarc: { type: 'DMARC', status: 'VALID', found: null, expected: 'DMARC', message: null },
+      ptr: { type: 'PTR', status: 'VALID', found: null, expected: 'PTR', message: null },
+    };
+
+    it('lanza NotFoundException si el dominio no existe', async () => {
+      (prisma.domain.findFirst as jest.Mock).mockResolvedValue(null);
+      await expect(service.verifyDns('nonexistent')).rejects.toThrow(NotFoundException);
+    });
+
+    it('actualiza registros DNS y retorna resultado', async () => {
+      const dns = {
+        checkDomain: jest.fn().mockResolvedValue(dnsOkResult),
+        checkMx: jest.fn(),
+        checkSpf: jest.fn(),
+        checkDkim: jest.fn(),
+        checkDmarc: jest.fn(),
+      } as unknown as import('./dns-checker.service').DnsCheckerService;
+      (prisma.domain.findFirst as jest.Mock).mockResolvedValue(fakeDomain);
+      (prisma.domain.update as jest.Mock).mockResolvedValue({
+        ...fakeDomain,
+        status: 'ACTIVE',
+        mxStatus: 'VALID',
+        spfStatus: 'VALID',
+        dkimStatus: 'VALID',
+        dmarcStatus: 'VALID',
+      });
+
+      const svc = new DomainsService(prisma, dns, makeConfig(), makeEventBus());
+      const result = await svc.verifyDns('d1');
+      expect(result.domain.status).toBe('ACTIVE');
+      expect(result.dnsCheck.allPassed).toBe(true);
+    });
+  });
+
+  // ─── getDnsInstructions() ─────────────────────────────────────────────────
+
+  describe('getDnsInstructions()', () => {
+    it('retorna 4 registros DNS', async () => {
+      const fake = {
+        id: 'd1',
+        domain: 'example.com',
+        status: 'PENDING_DNS',
+        dkimSelector: 'mail2026',
+        dkimPublicKey: 'pubkey-base64',
+      };
+      (prisma.domain.findFirst as jest.Mock).mockResolvedValue(fake);
+      const result = await service.getDnsInstructions('d1');
+      expect(result.records).toHaveLength(4);
+      expect(result.domain).toBe('example.com');
+    });
+  });
+
+  // ─── softDelete() ─────────────────────────────────────────────────────────
+
+  describe('softDelete()', () => {
+    it('lanza BadRequestException si el dominio está ACTIVE', async () => {
+      (prisma.domain.findFirst as jest.Mock).mockResolvedValue({ id: 'd1', status: 'ACTIVE' });
+      await expect(service.softDelete('d1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('lanza BadRequestException si hay buzones activos', async () => {
+      (prisma.domain.findFirst as jest.Mock).mockResolvedValue({ id: 'd1', status: 'PENDING_DNS' });
+      (prisma.mailbox!.count as jest.Mock).mockResolvedValue(2);
+      await expect(service.softDelete('d1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('marca como DELETED cuando no hay buzones activos', async () => {
+      (prisma.domain.findFirst as jest.Mock).mockResolvedValue({ id: 'd1', status: 'PENDING_DNS' });
+      (prisma.mailbox!.count as jest.Mock).mockResolvedValue(0);
+      (prisma.domain.update as jest.Mock).mockResolvedValue({ id: 'd1', status: 'DELETED', deletedAt: new Date() });
+      const result = await service.softDelete('d1');
+      expect(result.status).toBe('DELETED');
     });
   });
 });

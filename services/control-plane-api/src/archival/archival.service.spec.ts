@@ -22,7 +22,7 @@ const mockPrisma = {
     update: jest.fn(),
     count: jest.fn(),
   },
-  mailbox: { findFirst: jest.fn() },
+  mailbox: { findFirst: jest.fn(), update: jest.fn() },
   auditLog: { findMany: jest.fn() },
 };
 const mockAudit = { log: jest.fn() };
@@ -160,6 +160,66 @@ describe('ArchivalService', () => {
       expect(mockAudit.log).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'archival.legal_hold_released' }),
       );
+    });
+  });
+
+  describe('gdprExport', () => {
+    it('lanza NotFoundException si el buzón no existe', async () => {
+      mockPrisma.mailbox.findFirst.mockResolvedValue(null);
+      await expect(service.gdprExport('m1', 't1', 'u1')).rejects.toThrow(NotFoundException);
+    });
+
+    it('retorna datos de exportación y audita', async () => {
+      mockPrisma.mailbox.findFirst.mockResolvedValue({
+        id: 'm1',
+        localPart: 'alice',
+        createdAt: new Date('2026-01-01'),
+      });
+      const result = await service.gdprExport('m1', 't1', 'u1');
+      expect(result).toHaveProperty('mailbox');
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'archival.gdpr_export' }),
+      );
+    });
+  });
+
+  describe('gdprForget', () => {
+    it('lanza NotFoundException si el buzón no existe', async () => {
+      mockPrisma.mailbox.findFirst.mockResolvedValue(null);
+      await expect(service.gdprForget('m1', 't1', 'u1')).rejects.toThrow(NotFoundException);
+    });
+
+    it('lanza BadRequestException si hay legal holds activos', async () => {
+      mockPrisma.mailbox.findFirst.mockResolvedValue({ id: 'm1', localPart: 'alice' });
+      mockPrisma.legalHold.count.mockResolvedValue(1);
+      await expect(service.gdprForget('m1', 't1', 'u1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('marca el buzón como DELETED y audita si no hay holds', async () => {
+      mockPrisma.mailbox.findFirst.mockResolvedValue({ id: 'm1', localPart: 'alice' });
+      mockPrisma.legalHold.count.mockResolvedValue(0);
+      mockPrisma.mailbox.update.mockResolvedValue({ id: 'm1', status: 'DELETED' });
+
+      await service.gdprForget('m1', 't1', 'u1');
+      expect(mockPrisma.mailbox.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'DELETED' } }),
+      );
+      expect(mockAudit.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'archival.gdpr_forget' }),
+      );
+    });
+  });
+
+  describe('purgeExpiredEmails', () => {
+    it('no hace nada si ARCHIVAL está desactivado', async () => {
+      mockArchivalEnabled = false;
+      await service.purgeExpiredEmails();
+      // Sin errores; el método retorna temprano
+    });
+
+    it('ejecuta sin errores cuando ARCHIVAL está activado', async () => {
+      mockArchivalEnabled = true;
+      await service.purgeExpiredEmails();
     });
   });
 });

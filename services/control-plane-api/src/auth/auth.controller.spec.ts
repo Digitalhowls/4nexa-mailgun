@@ -162,5 +162,109 @@ describe('AuthController (integración HTTP)', () => {
         .send({ email: 'existing@x.com', password: 'Password12!@', role: UserRole.TENANT_OWNER });
       expect(res.status).toBe(409);
     });
+
+    it('→ 201 registro exitoso', async () => {
+      (prismaMock.user!.findUnique as jest.Mock).mockResolvedValue(null);
+      (prismaMock.user!.create as jest.Mock).mockResolvedValue({
+        id: 'new-user-id',
+        email: 'new@test.com',
+      });
+      const res = await request(app.getHttpServer() as Server)
+        .post('/auth/register')
+        .send({ email: 'new@test.com', password: 'Password12!@', role: UserRole.TENANT_OWNER });
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+    });
+  });
+
+  // ─── POST /auth/login éxito ─────────────────────────────────────────────
+
+  describe('POST /auth/login — ruta de éxito', () => {
+    it('→ 200 con credenciales correctas', async () => {
+      const argon2Mock = jest.requireMock<{ verify: jest.Mock }>('argon2');
+      argon2Mock.verify.mockResolvedValueOnce(true);
+      (prismaMock.user!.findUnique as jest.Mock).mockResolvedValue({
+        id: 'u1',
+        email: 'user@test.com',
+        status: 'ACTIVE',
+        lockedUntil: null,
+        failedLoginAttempts: 0,
+        totpEnabled: false,
+        passwordHash: '$argon2id$hash',
+        role: 'TENANT_OWNER',
+        tenantId: 't1',
+      });
+      (prismaMock.user!.update as jest.Mock).mockResolvedValue({});
+      const res = await request(app.getHttpServer() as Server)
+        .post('/auth/login')
+        .send({ email: 'user@test.com', password: 'Password1!' });
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+  });
+
+  // ─── GET /auth/me ───────────────────────────────────────────────────────
+
+  describe('GET /auth/me', () => {
+    it('→ 200 con datos del usuario autenticado', async () => {
+      (prismaMock.user!.findUnique as jest.Mock).mockResolvedValue({
+        id: 'admin-id',
+        email: 'admin@4nexa.io',
+        role: 'SUPER_ADMIN',
+        tenantId: null,
+      });
+      const res = await request(app.getHttpServer() as Server)
+        .get('/auth/me');
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+  });
+
+  // ─── POST /auth/logout ──────────────────────────────────────────────────
+
+  describe('POST /auth/logout', () => {
+    it('→ 200 cierra sesión correctamente', async () => {
+      const res = await request(app.getHttpServer() as Server)
+        .post('/auth/logout')
+        .set('Authorization', 'Bearer token');
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+  });
+
+  // ─── POST /auth/totp/setup ──────────────────────────────────────────────
+
+  describe('POST /auth/totp/setup', () => {
+    it('→ 200 retorna secreto TOTP', async () => {
+      const res = await request(app.getHttpServer() as Server)
+        .post('/auth/totp/setup')
+        .set('Authorization', 'Bearer token');
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+  });
+
+  // ─── POST /auth/change-password ────────────────────────────────────────
+
+  describe('POST /auth/change-password', () => {
+    it('→ 200 contraseña cambiada correctamente', async () => {
+      const argon2Mock = jest.requireMock<{ verify: jest.Mock }>('argon2');
+      argon2Mock.verify.mockResolvedValueOnce(true);
+      (prismaMock.user!.findUnique as jest.Mock).mockResolvedValue({
+        id: 'admin-id',
+        passwordHash: '$argon2id$hash',
+      });
+      (prismaMock.user!.update as jest.Mock).mockResolvedValue({});
+      const res = await request(app.getHttpServer() as Server)
+        .post('/auth/change-password')
+        .set('Authorization', 'Bearer token')
+        .send({
+          currentPassword: 'OldPass1!',
+          newPassword: 'NewPass12!abc',
+          confirmPassword: 'NewPass12!abc',
+        });
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
   });
 });
