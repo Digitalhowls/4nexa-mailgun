@@ -25,11 +25,11 @@ export interface PaginatedResponse<T> {
 export const mailboxesApi = {
   findAll: (page = 1, pageSize = 20, domainId?: string) =>
     apiClient
-      .get<PaginatedResponse<Mailbox>>('/mailboxes', { params: { page, pageSize, domainId } })
-      .then((r) => r.data),
+      .get<{ success: boolean; data: PaginatedResponse<Mailbox> }>('/mailboxes', { params: { page, pageSize, domainId } })
+      .then((r) => r.data.data),
 
   findOne: (id: string) =>
-    apiClient.get<Mailbox>(`/mailboxes/${id}`).then((r) => r.data),
+    apiClient.get<{ success: boolean; data: Mailbox }>(`/mailboxes/${id}`).then((r) => r.data.data),
 
   resetPassword: (id: string, password: string) =>
     apiClient.post(`/mailboxes/${id}/reset-password`, { password }).then((r) => r.data),

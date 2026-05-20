@@ -60,9 +60,9 @@ apiClient.interceptors.response.use(
         `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
         { refreshToken },
       );
-      useAuthStore.getState().setTokens(data.accessToken, data.refreshToken);
-      processQueue(null, data.accessToken);
-      originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+      useAuthStore.getState().setTokens(data.data.accessToken, data.data.refreshToken);
+      processQueue(null, data.data.accessToken);
+      originalRequest.headers.Authorization = `Bearer ${data.data.accessToken}`;
       return apiClient(originalRequest);
     } catch (refreshError) {
       processQueue(refreshError, null);

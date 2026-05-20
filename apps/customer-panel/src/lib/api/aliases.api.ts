@@ -32,17 +32,17 @@ export interface PaginatedResponse<T> {
 export const aliasesApi = {
   findAll: (page = 1, pageSize = 20, domainId?: string) =>
     apiClient
-      .get<PaginatedResponse<Alias>>('/aliases', { params: { page, pageSize, domainId } })
-      .then((r) => r.data),
+      .get<{ success: boolean; data: PaginatedResponse<Alias> }>('/aliases', { params: { page, pageSize, domainId } })
+      .then((r) => r.data.data),
 
   findOne: (id: string) =>
-    apiClient.get<Alias>(`/aliases/${id}`).then((r) => r.data),
+    apiClient.get<{ success: boolean; data: Alias }>(`/aliases/${id}`).then((r) => r.data.data),
 
   create: (payload: CreateAliasPayload) =>
-    apiClient.post<Alias>('/aliases', payload).then((r) => r.data),
+    apiClient.post<{ success: boolean; data: Alias }>('/aliases', payload).then((r) => r.data.data),
 
   update: (id: string, payload: UpdateAliasPayload) =>
-    apiClient.patch<Alias>(`/aliases/${id}`, payload).then((r) => r.data),
+    apiClient.patch<{ success: boolean; data: Alias }>(`/aliases/${id}`, payload).then((r) => r.data.data),
 
   remove: (id: string) =>
     apiClient.delete(`/aliases/${id}`).then((r) => r.data),

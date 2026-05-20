@@ -31,11 +31,11 @@ export interface PaginatedResponse<T> {
 
 export const domainsApi = {
   findAll: (page = 1, pageSize = 20) =>
-    apiClient.get<PaginatedResponse<Domain>>('/domains', { params: { page, pageSize } }).then((r) => r.data),
+    apiClient.get<{ success: boolean; data: PaginatedResponse<Domain> }>('/domains', { params: { page, pageSize } }).then((r) => r.data.data),
 
   findOne: (id: string) =>
-    apiClient.get<Domain>(`/domains/${id}`).then((r) => r.data),
+    apiClient.get<{ success: boolean; data: Domain }>(`/domains/${id}`).then((r) => r.data.data),
 
   verifyDns: (id: string) =>
-    apiClient.post<DnsStatus>(`/domains/${id}/verify-dns`).then((r) => r.data),
+    apiClient.post<{ success: boolean; data: DnsStatus }>(`/domains/${id}/verify-dns`).then((r) => r.data.data),
 };

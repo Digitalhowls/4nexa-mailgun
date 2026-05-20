@@ -11,6 +11,12 @@ import {
   MailOpen,
   ArrowLeftRight,
   Settings,
+  ClipboardList,
+  CreditCard,
+  Shield,
+  KeyRound,
+  Siren,
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -22,6 +28,12 @@ const NAV_ITEMS = [
   { href: '/domains', label: 'Dominios', icon: Globe },
   { href: '/mailboxes', label: 'Buzones', icon: MailOpen },
   { href: '/aliases', label: 'Alias', icon: ArrowLeftRight },
+  { href: '/deliverability', label: 'Deliverability', icon: TrendingUp },
+  { href: '/billing', label: 'Billing', icon: CreditCard },
+  { href: '/antispam', label: 'Antispam', icon: Shield },
+  { href: '/credentials', label: 'Credenciales', icon: KeyRound },
+  { href: '/audit', label: 'Auditoría', icon: ClipboardList },
+  { href: '/disaster-recovery', label: 'Disaster Recovery', icon: Siren },
 ];
 
 export function Sidebar() {
