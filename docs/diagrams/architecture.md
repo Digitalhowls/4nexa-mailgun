@@ -313,3 +313,197 @@ erDiagram
     Tenant ||--o{ MigrationJob : "tenantId"
     Tenant ||--o{ BackupJob : "tenantId"
 ```
+
+---
+
+## 8. Provisioning Flow — Nuevo Tenant/Dominio/Buzón
+
+```mermaid
+sequenceDiagram
+    participant ADM as Admin (Panel)
+    participant CP as Control Plane API
+    participant DB as PostgreSQL
+    participant Q as BullMQ (Redis)
+    participant NA as Node Agent (mTLS)
+    participant PF as Postfix
+    participant DV as Dovecot
+
+    ADM->>CP: POST /tenants {plan, slug, nodeId}
+    CP->>DB: INSERT tenant (status=PROVISIONING)
+    CP->>Q: Enqueue provisioning.tenant job
+    CP-->>ADM: 201 {tenantId}
+
+    Q->>CP: Worker procesa job
+    CP->>NA: POST /operations/postfix/configure {tenant}
+    NA->>PF: Escribir virtual_mailbox_domains
+    PF-->>NA: OK
+
+    ADM->>CP: POST /domains {domain, tenantId}
+    CP->>DB: INSERT domain (verified=false)
+    CP->>NA: POST /operations/dkim/generate {domain}
+    NA->>NA: Generar par clave DKIM (2048-bit RSA)
+    NA-->>CP: {selector, publicKey, privateKeyPath}
+    CP->>DB: UPDATE domain (dkimSelector, dkimPublicKey)
+    CP-->>ADM: 201 {domainId, dnsInstructions}
+
+    ADM->>CP: POST /domains/:id/verify
+    CP->>NA: POST /operations/dns/check {domain}
+    NA->>NA: dig TXT _dmarc / SPF / DKIM
+    NA-->>CP: {spf:true, dkim:true, dmarc:true}
+    CP->>DB: UPDATE domain (verified=true, verifiedAt)
+    CP->>NA: POST /operations/postfix/reload
+    PF-->>NA: reloaded
+
+    ADM->>CP: POST /mailboxes {address, password}
+    CP->>CP: AES-256-GCM cifrar password
+    CP->>DB: INSERT mailbox
+    CP->>NA: POST /operations/mailbox/create {address, quota}
+    NA->>DV: doveadm user create + quota set
+    NA->>PF: Actualizar virtual_mailbox_maps
+    NA-->>CP: OK
+    CP->>DB: UPDATE mailbox (status=ACTIVE)
+    CP-->>ADM: 201 {mailboxId}
+```
+
+---
+
+## 9. Backup Flow — Ciclo Completo Restic
+
+```mermaid
+sequenceDiagram
+    participant CRON as Scheduler (NestJS @Cron)
+    participant CP as Control Plane API
+    participant Q as BullMQ (Redis)
+    participant NA as Node Agent
+    participant FS as Maildir (NVMe)
+    participant R as Restic
+    participant S3 as S3 Compatible Storage
+
+    CRON->>CP: Trigger backup.daily (02:00 UTC)
+    CP->>Q: Enqueue backup jobs (one per tenant)
+
+    loop Para cada tenant activo
+        Q->>CP: Worker procesa backup job
+        CP->>NA: POST /operations/backup/run {tenantId, type}
+        NA->>FS: Snapshot /maildata/{tenantId}/
+        NA->>R: restic backup --tag tenant={id}
+        R->>S3: Upload chunks cifrados (AES-256)
+        S3-->>R: 200 OK
+        R-->>NA: {snapshotId, filesNew, totalSize}
+        NA->>R: restic check --read-data-subset=5%
+        R-->>NA: {status: OK, errors: 0}
+        NA-->>CP: {snapshotId, sizeBytes, verified:true}
+        CP->>CP: INSERT BackupJob (status=COMPLETED)
+        CP->>CP: Emitir backup.completed event
+    end
+
+    Note over CP: Si algún job falla → status=FAILED\n→ event backup.failed → Alertmanager
+
+    CP->>CP: @Weekly restore test (tenant aleatorio)
+    CP->>NA: POST /operations/backup/verify {snapshotId}
+    NA->>R: restic restore --target /tmp/verify-{id}/
+    NA->>NA: Verificar integridad ficheros
+    NA-->>CP: {filesRestored, integrity: OK}
+    CP->>CP: INSERT BackupJob (type=VERIFY, status=COMPLETED)
+```
+
+---
+
+## 10. Abuse Detection — Detección y Respuesta
+
+```mermaid
+flowchart TD
+    A([Email enviado]) --> B[Postfix submission port 587]
+    B --> C[Rspamd milter análisis]
+
+    C --> D{Score Rspamd}
+    D -->|score < 5| E[ACCEPT — entrega normal]
+    D -->|5 ≤ score < 15| F[ACCEPT con headers X-Spam-*]
+    D -->|score ≥ 15| G[REJECT — 550 spam policy]
+
+    F --> H[Postfix envía al MTA destino]
+    H --> I{Respuesta destino}
+    I -->|Bounce / complaint FBL| J[Node Agent captura bounce]
+    J --> K[POST /events/bounce → Control Plane]
+
+    K --> L[Reputation Engine actualiza scores]
+    L --> M{Threshold superado?}
+    M -->|bounceRate > 5%| N[AUTO: throttle 50%\nsobre ese dominio]
+    M -->|spamRate > 0.1%| O[AUTO: throttle nodo\n+ alert Alertmanager]
+    M -->|spamRate > 0.5%| P[AUTO: suspender dominio\n+ emitir abuse.detected event]
+
+    P --> Q[Brain registra celda ANOMALY]
+    Q --> R[Admin recibe alerta Grafana]
+    R --> S{Acción admin}
+    S -->|spam-outbreak.sh| T[Throttle nodo\n→ suspender tenant\n→ purgar colas]
+    S -->|Revisar manualmente| U[AuditLog + acción manual]
+
+    style G fill:#f00,color:#fff
+    style N fill:#f90,color:#000
+    style O fill:#f90,color:#000
+    style P fill:#f00,color:#fff
+    style T fill:#c00,color:#fff
+```
+
+---
+
+## 11. Tenant Isolation — Capas de Aislamiento
+
+```mermaid
+graph TB
+    subgraph "Capa 1 — Autenticación y Autorización"
+        JWT["JWT + JwtAuthGuard\n(cada request)"]
+        RBAC["RolesGuard\n(SUPER_ADMIN / PLATFORM_ADMIN\n/ TENANT_ADMIN / TENANT_USER)"]
+        OWN["Ownership check\n(tenantId del JWT\n= tenantId del recurso)"]
+    end
+
+    subgraph "Capa 2 — Base de Datos (PostgreSQL)"
+        ROW["Row-level filtering\nWHERE tenantId = :tid\nen cada query Prisma"]
+        FK["Foreign Keys\n(domainId → tenantId,\nmailboxId → tenantId)"]
+        AUDIT["AuditLog inmutable\n(entityType + entityId\n+ userId + tenantId)"]
+    end
+
+    subgraph "Capa 3 — Sistema de Ficheros (Mail Node)"
+        MDIR["Maildir separado por tenant\n/maildata/{tenantId}/{domain}/{mailbox}/"]
+        QUOTA["Dovecot quota per mailbox\n(hard + soft limits)"]
+        PERM["Permisos Linux\nvmail:vmail owner\nmode 700"]
+    end
+
+    subgraph "Capa 4 — Red y Configuración SMTP"
+        VDOM["Postfix virtual_mailbox_domains\n(solo dominios del tenant)"]
+        SASL["Dovecot SASL\n(auth solo para buzones propios)"]
+        DKIM["Claves DKIM por dominio\n(no compartidas entre tenants)"]
+    end
+
+    subgraph "Capa 5 — Operaciones Node Agent"
+        MTLS["mTLS entre CP y Node Agent\n(certificado por nodo, rotación automática)"]
+        SCOPE["Scope validation\n(operación validada contra tenantId\nantes de ejecutar en disco)"]
+    end
+
+    JWT --> RBAC --> OWN
+    OWN --> ROW
+    ROW --> FK
+    ROW --> AUDIT
+    OWN --> SCOPE
+    SCOPE --> MTLS
+    SCOPE --> MDIR
+    MDIR --> QUOTA
+    MDIR --> PERM
+    VDOM --> SASL
+    SASL --> DKIM
+
+    style JWT fill:#1a6,color:#fff
+    style RBAC fill:#1a6,color:#fff
+    style OWN fill:#1a6,color:#fff
+    style ROW fill:#16a,color:#fff
+    style FK fill:#16a,color:#fff
+    style AUDIT fill:#16a,color:#fff
+    style MDIR fill:#a61,color:#fff
+    style QUOTA fill:#a61,color:#fff
+    style PERM fill:#a61,color:#fff
+    style VDOM fill:#61a,color:#fff
+    style SASL fill:#61a,color:#fff
+    style DKIM fill:#61a,color:#fff
+    style MTLS fill:#a16,color:#fff
+    style SCOPE fill:#a16,color:#fff
+```
