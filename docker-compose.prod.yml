@@ -9,6 +9,9 @@ networks:
     driver: bridge
   mailgun-edge:
     driver: bridge
+  # Red compartida entre nginx y cloudflared
+  cloudflared-net:
+    driver: bridge
 
 volumes:
   postgres-data:
@@ -22,15 +25,21 @@ services:
     image: nginx:1.27-alpine
     container_name: mailgun_nginx
     restart: unless-stopped
-    ports:
-      - "${APP_PORT_HTTP:-80}:80"
-      - "${APP_PORT_HTTPS:-443}:443"
+    # Con Cloudflare Tunnel: cloudflared enruta a http://nginx:80 por la red Docker.
+    # No necesitamos exponer puertos al host. Si usas IP fija/VPS clásico,
+    # descomenta las líneas ports: para exponer 80/443.
+    # ports:
+    #   - "${APP_PORT_HTTP:-80}:80"
+    #   - "${APP_PORT_HTTPS:-443}:443"
+    expose:
+      - "80"
     volumes:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/maintenance.html:/usr/share/nginx/html/maintenance.html:ro
       - nginx-gateway:/nginx-gateway:ro
     networks:
       - mailgun-edge
+      - cloudflared-net
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost/nginx-health || exit 1"]
       interval: 30s
@@ -40,6 +49,26 @@ services:
       - control-plane-api
       - admin-panel
       - customer-panel
+
+  # ── Cloudflare Tunnel ──────────────────────────────────────────────────────
+  # Expone los servicios sin IP fija ni puertos abiertos en el firewall.
+  # CLOUDFLARE_TUNNEL_TOKEN: crear en https://one.dash.cloudflare.com → Networks → Tunnels
+  # Rutas a configurar en el dashboard de Cloudflare:
+  #   api.mail.4nexa.io   → http://nginx:80  (Host: api.mail.4nexa.io)
+  #   admin.mail.4nexa.io → http://nginx:80  (Host: admin.mail.4nexa.io)
+  #   app.mail.4nexa.io   → http://nginx:80  (Host: app.mail.4nexa.io)
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: mailgun_cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - cloudflared-net
+    depends_on:
+      nginx:
+        condition: service_healthy
 
   # ── PostgreSQL ─────────────────────────────────────────────────────────────
   postgres:

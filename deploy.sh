@@ -84,9 +84,8 @@ INTERNAL_API_KEY=${INTERNAL_API_KEY}
 API_PUBLIC_URL=https://api.mail.4nexa.io/api/v1
 CORS_ORIGINS=https://admin.mail.4nexa.io,https://app.mail.4nexa.io
 
-# Puertos (HTTP interno — aaPanel gestiona SSL)
-APP_PORT_HTTP=80
-APP_PORT_HTTPS=443
+# Cloudflare Tunnel — completar después de crear el tunnel en el dashboard
+CLOUDFLARE_TUNNEL_TOKEN=CHANGE_ME_tunnel_token_from_cloudflare_dashboard
 ENVEOF
     success ".env generado"
 else
