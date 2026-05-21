@@ -156,7 +156,7 @@ jobs:
         run: |
           for i in $(seq 1 12); do
             status=$(curl -s -o /dev/null -w "%{http_code}" \
-              "https://api.mail.4nexa.io/api/v1/health" 2>/dev/null || echo "000")
+              "https://api.mailgun.4nexa.io/api/v1/health" 2>/dev/null || echo "000")
             if [ "$status" = "200" ]; then
               echo "✓ API healthy (intento $i)"
               exit 0
@@ -170,7 +170,7 @@ jobs:
       - name: Smoke test — Auth rechaza credenciales inválidas (401)
         run: |
           status=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST "https://api.mail.4nexa.io/api/v1/auth/login" \
+            -X POST "https://api.mailgun.4nexa.io/api/v1/auth/login" \
             -H "Content-Type: application/json" \
             -d '{"email":"smoke@invalid.test","password":"invalid"}')
           if [ "$status" = "401" ]; then
@@ -183,7 +183,7 @@ jobs:
       - name: Smoke test — Admin panel accesible
         run: |
           status=$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://admin.mail.4nexa.io" 2>/dev/null || echo "000")
+            "https://admin.mailgun.4nexa.io" 2>/dev/null || echo "000")
           if [ "$status" = "200" ] || [ "$status" = "307" ] || [ "$status" = "302" ]; then
             echo "✓ Admin panel accesible (HTTP $status)"
           else
@@ -194,7 +194,7 @@ jobs:
       - name: Smoke test — Customer panel accesible
         run: |
           status=$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://app.mail.4nexa.io" 2>/dev/null || echo "000")
+            "https://app.mailgun.4nexa.io" 2>/dev/null || echo "000")
           if [ "$status" = "200" ] || [ "$status" = "307" ] || [ "$status" = "302" ]; then
             echo "✓ Customer panel accesible (HTTP $status)"
           else

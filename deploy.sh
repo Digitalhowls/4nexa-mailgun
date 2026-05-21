@@ -81,11 +81,13 @@ JWT_REFRESH_EXPIRES_IN=7d
 
 # API
 INTERNAL_API_KEY=${INTERNAL_API_KEY}
-API_PUBLIC_URL=https://api.mail.4nexa.io/api/v1
-CORS_ORIGINS=https://admin.mail.4nexa.io,https://app.mail.4nexa.io
+API_PUBLIC_URL=https://api.mailgun.4nexa.io/api/v1
+CORS_ORIGINS=https://admin.mailgun.4nexa.io,https://app.mailgun.4nexa.io
 
-# Cloudflare Tunnel — completar después de crear el tunnel en el dashboard
-CLOUDFLARE_TUNNEL_TOKEN=CHANGE_ME_tunnel_token_from_cloudflare_dashboard
+# Puertos internos (aaPanel proxy)
+API_PORT=3001
+ADMIN_PORT=3002
+CUSTOMER_PORT=3003
 ENVEOF
     success ".env generado"
 else
