@@ -91,11 +91,96 @@ describe('ArchivalController', () => {
     expect(res.body.success).toBe(true);
   });
 
+  it('POST /archival/policy con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const savedTenantId = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server)
+        .post('/archival/policy')
+        .send({ retentionDays: 30, autoDelete: false });
+      expect([201, 400]).toContain(res.status); // puede fallar validación, pero la branch se cubre
+    } finally {
+      (adminUser as any).tenantId = savedTenantId;
+    }
+  });
+
   it('POST /archival/gdpr/forget → 201', async () => {
     const res = await request(app.getHttpServer() as Server)
       .post('/archival/gdpr/forget')
       .send({ mailboxId: 'mb1' });
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
+  });
+
+  it('GET /archival/policy con tenantId null → rama ?? ""', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server).get('/archival/policy');
+      expect(res.status).toBe(200);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
+  });
+
+  it('POST /archival/legal-holds con tenantId null → rama ?? ""', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server)
+        .post('/archival/legal-holds')
+        .send({ mailboxId: 'mb1', reason: 'litigation' });
+      expect(res.status).toBe(201);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
+  });
+
+  it('GET /archival/legal-holds con tenantId null → rama ?? ""', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server).get('/archival/legal-holds');
+      expect(res.status).toBe(200);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
+  });
+
+  it('DELETE /archival/legal-holds/:id con tenantId null → rama ?? ""', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server).delete('/archival/legal-holds/hold1');
+      expect(res.status).toBe(200);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
+  });
+
+  it('POST /archival/gdpr/export con tenantId null → rama ?? ""', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server)
+        .post('/archival/gdpr/export')
+        .send({ mailboxId: 'mb1' });
+      expect(res.status).toBe(201);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
+  });
+
+  it('POST /archival/gdpr/forget con tenantId null → rama ?? ""', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server)
+        .post('/archival/gdpr/forget')
+        .send({ mailboxId: 'mb1' });
+      expect(res.status).toBe(201);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
   });
 });

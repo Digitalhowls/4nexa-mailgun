@@ -72,6 +72,23 @@ describe('generateDkimKeyPair()', () => {
     expect(a.publicKeyBase64).not.toBe(b.publicKeyBase64);
     expect(a.encryptedPrivateKey).not.toBe(b.encryptedPrivateKey);
   });
+
+  it('propaga error cuando crypto.generateKeyPair llama callback con err (cubre línea 136)', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const cryptoMod = require('crypto');
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    const spy = (jest.spyOn(cryptoMod as any, 'generateKeyPair') as jest.SpyInstance<any, any[]>)
+      .mockImplementationOnce((...args: any[]) => {
+        (args[2] as (err: Error | null, pub: any, priv: any) => void)(
+          new Error('clave RSA inválida'),
+          null,
+          null,
+        );
+      });
+    const svc = makeService();
+    await expect(svc.generateDkimKeyPair()).rejects.toThrow('clave RSA inválida');
+    spy.mockRestore();
+  });
 });
 
 // ─── rotateDkim() ─────────────────────────────────────────────────────────────

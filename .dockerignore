@@ -1,0 +1,62 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# .dockerignore — 4nexa Mailgun Platform
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Dependencias (se instalan dentro del contenedor)
+node_modules
+**/node_modules
+
+# Builds locales
+dist
+**/dist
+.next
+**/.next
+.turbo
+**/.turbo
+
+# Tests y QA
+qa
+**/*.test.ts
+**/*.spec.ts
+**/__tests__
+**/coverage
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+
+# Documentación
+*.md
+docs
+LICENSE
+
+# Entorno
+.env
+.env.*
+!.env.example
+
+# Docker compose (no necesario dentro de la imagen)
+docker-compose*.yml
+docker/nginx
+
+# Herramientas de desarrollo
+.eslintrc*
+.prettierrc*
+tsconfig*.json
+jest.config*
+vitest.config*
+
+# Backups
+backups
+
+# Logs
+*.log
+logs
+
+# OS
+.DS_Store
+Thumbs.db

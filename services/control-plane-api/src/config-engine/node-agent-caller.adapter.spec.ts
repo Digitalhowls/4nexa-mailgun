@@ -67,6 +67,13 @@ describe('NodeAgentCallerAdapter', () => {
         .rejects.toThrow(ServiceUnavailableException);
     });
 
+    it('usa "sin detalles" cuando error no está en la respuesta (cubre línea 47)', async () => {
+      mockCall.mockResolvedValue({ success: false });
+
+      await expect(adapter.reloadService('node-1', 'postfix' as ServiceName))
+        .rejects.toThrow('sin detalles');
+    });
+
     it('pasa el parámetro service correcto en la llamada', async () => {
       mockCall.mockResolvedValue({ success: true });
 

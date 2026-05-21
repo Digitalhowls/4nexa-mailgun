@@ -245,3 +245,66 @@ describe('verifyRange()', () => {
     expect(result.failedIds).toContain(id);
   });
 });
+
+// ─── list() ──────────────────────────────────────────────────────────────────
+
+describe('list()', () => {
+  it('retorna paginación sin filtros', async () => {
+    const { service, prisma } = makeService();
+    (prisma.auditLog.count as jest.Mock).mockResolvedValue(5);
+    (prisma.auditLog.findMany as jest.Mock).mockResolvedValue([{ id: 'log-1' }, { id: 'log-2' }]);
+
+    const result = await service.list({ limit: 50, offset: 0 });
+
+    expect(result.total).toBe(5);
+    expect(result.items).toHaveLength(2);
+    expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 50, skip: 0 }),
+    );
+  });
+
+  it('aplica todos los filtros opcionales', async () => {
+    const { service, prisma } = makeService();
+    (prisma.auditLog.count as jest.Mock).mockResolvedValue(1);
+    (prisma.auditLog.findMany as jest.Mock).mockResolvedValue([{ id: 'log-1' }]);
+
+    await service.list({
+      tenantId: 't1',
+      action: 'auth.login',
+      entityType: 'user',
+      entityId: 'u1',
+      startDate: '2024-01-01',
+      endDate: '2024-12-31',
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: 't1',
+          action: 'auth.login',
+          entityType: 'user',
+          entityId: 'u1',
+        }),
+      }),
+    );
+  });
+});
+
+// ─── findById() ──────────────────────────────────────────────────────────────
+
+describe('findById()', () => {
+  it('retorna el log por id', async () => {
+    const logEntry = { id: 'log-1', action: 'user.login' };
+    const { service, prisma } = makeService();
+    (prisma.auditLog.findUnique as jest.Mock).mockResolvedValue(logEntry);
+
+    const result = await service.findById('log-1');
+
+    expect(result).toMatchObject({ id: 'log-1' });
+    expect(prisma.auditLog.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'log-1' } }),
+    );
+  });
+});

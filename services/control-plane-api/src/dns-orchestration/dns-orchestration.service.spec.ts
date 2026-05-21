@@ -206,6 +206,54 @@ describe('DnsOrchestrationService', () => {
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.records.every((r) => r.created === false)).toBe(true);
     });
+
+    it('gestiona error no-Error en provisionDomain catch (rama String(err))', async () => {
+      const { createCipheriv, randomBytes } = await import('crypto');
+      const encKey = Buffer.from('a'.repeat(64), 'hex');
+      const iv = randomBytes(12);
+      const cipher = createCipheriv('aes-256-gcm', encKey, iv);
+      const ct = Buffer.concat([cipher.update('test-api-key', 'utf8'), cipher.final()]);
+      const tag = cipher.getAuthTag();
+      const encApiKey = `${iv.toString('hex')}:${tag.toString('hex')}:${ct.toString('hex')}`;
+
+      mockPrisma.domain.findFirst.mockResolvedValue({
+        id: 'd1', domain: 'example.com', tenantId: 't1', nodeId: null,
+        dkimSelector: '4nexa', dkimPublicKey: 'pub',
+        dnsProvider: { id: 'p1', provider: 'CLOUDFLARE', encApiKey, encApiSecret: null, zoneId: 'z1' },
+      });
+      mockPrisma.node.findUnique.mockResolvedValue(null);
+      global.fetch = jest.fn().mockRejectedValue('string-error') as any;
+
+      const result = await service.provisionDomain('d1', 't1', 'u1');
+
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0]).toContain('string-error');
+    });
+
+    it('push created:true cuando createDnsRecord tiene éxito (cubre línea 130)', async () => {
+      const { createCipheriv, randomBytes } = await import('crypto');
+      const encKey = Buffer.from('a'.repeat(64), 'hex');
+      const iv = randomBytes(12);
+      const cipher = createCipheriv('aes-256-gcm', encKey, iv);
+      const ct = Buffer.concat([cipher.update('test-api-key', 'utf8'), cipher.final()]);
+      const tag = cipher.getAuthTag();
+      const encApiKey = `${iv.toString('hex')}:${tag.toString('hex')}:${ct.toString('hex')}`;
+
+      mockPrisma.domain.findFirst.mockResolvedValue({
+        id: 'd1', domain: 'example.com', tenantId: 't1', nodeId: null,
+        dkimSelector: '4nexa', dkimPublicKey: 'pub',
+        dnsProvider: { id: 'p1', provider: 'CLOUDFLARE', encApiKey, encApiSecret: null, zoneId: 'z1' },
+      });
+      mockPrisma.node.findUnique.mockResolvedValue(null);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => null },
+      }) as any;
+
+      const result = await service.provisionDomain('d1', 't1', 'u1');
+
+      expect(result.records.some((r: any) => r.created === true)).toBe(true);
+    });
   });
 
   describe('checkDnsDrift()', () => {
@@ -244,4 +292,116 @@ describe('DnsOrchestrationService', () => {
 
       await expect(service.checkDnsDrift()).resolves.not.toThrow();
     });
-  });});
+  });
+
+  describe('verifyDomain — catches de dns.promises', () => {
+    it('retorna false en mx/spf/dkim/dmarc cuando dns.promises lanza', async () => {
+      const dnsMod = require('dns').promises;
+      const mxSpy = jest.spyOn(dnsMod, 'resolveMx').mockRejectedValue(new Error('DNS error'));
+      const txtSpy = jest.spyOn(dnsMod, 'resolveTxt').mockRejectedValue(new Error('DNS error'));
+      try {
+        mockPrisma.domain.findFirst.mockResolvedValue({
+          id: 'd1', domain: 'failtest.internal', dkimSelector: 'default',
+          mxStatus: 'UNCHECKED', spfStatus: 'UNCHECKED', dkimStatus: 'UNCHECKED', dmarcStatus: 'UNCHECKED',
+        });
+        mockPrisma.domain.update = jest.fn().mockResolvedValue({});
+
+        const result = await service.verifyDomain('d1', 't1');
+
+        expect(result.mx).toBe(false);
+        expect(result.spf).toBe(false);
+        expect(result.dkim).toBe(false);
+        expect(result.dmarc).toBe(false);
+      } finally {
+        mxSpy.mockRestore();
+        txtSpy.mockRestore();
+      }
+    });
+  });
+
+  // ─── Branches adicionales (líneas 39, 125, 159, 300-301) ─────────────────
+
+  it('constructor: usa clave de ceros cuando DKIM_ENCRYPTION_KEY no está definida (línea 39)', async () => {
+    const saved = process.env.DKIM_ENCRYPTION_KEY;
+    delete process.env.DKIM_ENCRYPTION_KEY;
+    try {
+      const mod = await Test.createTestingModule({
+        providers: [
+          DnsOrchestrationService,
+          { provide: PrismaService, useValue: mockPrisma },
+          { provide: AuditService, useValue: mockAudit },
+          { provide: EventBusService, useValue: mockEventBus },
+        ],
+      }).compile();
+      expect(mod.get(DnsOrchestrationService)).toBeDefined();
+    } finally {
+      process.env.DKIM_ENCRYPTION_KEY = saved!;
+    }
+  });
+
+  describe('createProvider — branches adicionales (líneas 51, 57)', () => {
+    it('cifra el apiSecret cuando se proporciona', async () => {
+      mockPrisma.dnsProvider.create.mockResolvedValue({ id: 'p2', tenantId: 't1', provider: 'OVH', zoneId: null, isActive: true, createdAt: new Date() });
+      await service.createProvider('t1', { provider: 'OVH' as any, apiKey: 'key', apiSecret: 'my-secret' }, 'u1');
+      const createCall = mockPrisma.dnsProvider.create.mock.calls[0][0].data;
+      expect(createCall.encApiSecret).not.toBeNull();
+      expect(createCall.encApiSecret).toMatch(/^[0-9a-f]+:/);
+    });
+
+    it('usa null para zoneId cuando no se proporciona', async () => {
+      mockPrisma.dnsProvider.create.mockResolvedValue({ id: 'p3', tenantId: 't1', provider: 'HETZNER', zoneId: null, isActive: true, createdAt: new Date() });
+      await service.createProvider('t1', { provider: 'HETZNER' as any, apiKey: 'key' }, 'u1');
+      const createCall = mockPrisma.dnsProvider.create.mock.calls[0][0].data;
+      expect(createCall.zoneId).toBeNull();
+    });
+  });
+
+  describe('provisionDomain — branches adicionales (líneas 125, 300-301)', () => {
+    async function makeEncKey(value: string): Promise<string> {
+      const { createCipheriv, randomBytes } = await import('crypto');
+      const encKey = Buffer.from('a'.repeat(64), 'hex');
+      const iv = randomBytes(12);
+      const cipher = createCipheriv('aes-256-gcm', encKey, iv);
+      const ct = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+      const tag = cipher.getAuthTag();
+      return `${iv.toString('hex')}:${tag.toString('hex')}:${ct.toString('hex')}`;
+    }
+
+    it('usa string vacío como dkimPublicKey cuando es null (línea 125)', async () => {
+      const encApiKey = await makeEncKey('test-api-key');
+      mockPrisma.domain.findFirst.mockResolvedValue({
+        id: 'd1', domain: 'example.com', tenantId: 't1', nodeId: null,
+        dkimSelector: '4nexa', dkimPublicKey: null,
+        dnsProvider: { id: 'p1', provider: 'CLOUDFLARE', encApiKey, encApiSecret: null, zoneId: 'z1' },
+      });
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, headers: { get: () => null } }) as any;
+      const result = await service.provisionDomain('d1', 't1', 'u1');
+      expect(result.records.length).toBeGreaterThan(0);
+    });
+
+    it('descifra encApiSecret cuando existe y usa undefined como zoneId cuando es null (líneas 300-301)', async () => {
+      const encApiKey = await makeEncKey('api-key');
+      const encApiSecret = await makeEncKey('api-secret');
+      mockPrisma.domain.findFirst.mockResolvedValue({
+        id: 'd1', domain: 'example.com', tenantId: 't1', nodeId: null,
+        dkimSelector: '4nexa', dkimPublicKey: 'pub',
+        dnsProvider: { id: 'p1', provider: 'CLOUDFLARE', encApiKey, encApiSecret, zoneId: null },
+      });
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, headers: { get: () => null } }) as any;
+      const result = await service.provisionDomain('d1', 't1', 'u1');
+      expect(result.records.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('verifyDomain — dkimSelector null (línea 159)', () => {
+    it('usa "default" como selector cuando dkimSelector es null', async () => {
+      mockPrisma.domain.findFirst.mockResolvedValue({
+        id: 'd1', domain: 'example.com', dkimSelector: null,
+        mxStatus: 'UNCHECKED', spfStatus: 'UNCHECKED', dkimStatus: 'UNCHECKED', dmarcStatus: 'UNCHECKED',
+      });
+      mockPrisma.domain.update = jest.fn().mockResolvedValue({});
+      const result = await service.verifyDomain('d1', 't1');
+      expect(typeof result.dkim).toBe('boolean');
+    });
+  });
+});

@@ -197,4 +197,35 @@ describe('QueueEngineService', () => {
       expect(result).toEqual({ queueSize: 42 });
     });
   });
+
+  // ─── Branches ?? 0 ────────────────────────────────────────────────────────
+
+  describe('getStats() — ?? 0 cuando keys son undefined', () => {
+    it('usa 0 cuando getJobCounts devuelve objeto vacío', async () => {
+      const emptyQueue = makeQueue({ counts: {} });
+      service = new QueueEngineService(makeEventBus(emptyQueue, emptyQueue), makeAgentClient());
+      const result = await service.getStats();
+      expect(result.main.waiting).toBe(0);
+      expect(result.main.active).toBe(0);
+      expect(result.dlq.waiting).toBe(0);
+    });
+  });
+
+  describe('getJobs() — ?? 0 total cuando key no existe', () => {
+    it('retorna total 0 cuando el estado no está en el resultado de getJobCounts', async () => {
+      const queueWithEmptyCounts = { ...makeQueue(), getJobCounts: jest.fn().mockResolvedValue({}) };
+      service = new QueueEngineService(makeEventBus(queueWithEmptyCounts as any), makeAgentClient());
+      const result = await service.getJobs('waiting', 1, 10);
+      expect(result.total).toBe(0);
+    });
+  });
+
+  describe('getDlqJobs() — ?? 0 cuando counts.waiting es undefined', () => {
+    it('retorna total 0 cuando la DLQ no tiene la key waiting', async () => {
+      const dlqQueue = { ...makeQueue(), getJobCounts: jest.fn().mockResolvedValue({}) };
+      service = new QueueEngineService(makeEventBus(makeQueue(), dlqQueue as any), makeAgentClient());
+      const result = await service.getDlqJobs(1, 10);
+      expect(result.total).toBe(0);
+    });
+  });
 });

@@ -248,6 +248,16 @@ describe('NodesService.findAll()', () => {
     const result = await svc.findAll({ page: 1, pageSize: 10 });
     expect(result).toMatchObject({ items: [FAKE_NODE], total: 1 });
   });
+
+  it('filtra por status, provider y region cuando se proporcionan', async () => {
+    const { svc, prisma } = makeCrudDeps();
+    await svc.findAll({ page: 1, pageSize: 10, status: 'ACTIVE' as any, provider: 'hetzner', region: 'eu-central' });
+    expect(prisma.node.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: 'ACTIVE', provider: 'hetzner', region: 'eu-central' }),
+      }),
+    );
+  });
 });
 
 describe('NodesService.findOne()', () => {
@@ -277,6 +287,15 @@ describe('NodesService.setMaintenance()', () => {
     (prisma.node.update as jest.Mock).mockResolvedValue({ ...FAKE_NODE, status: 'MAINTENANCE' });
     const result = await svc.setMaintenance(NODE_ID, true);
     expect(result.status).toBe('MAINTENANCE');
+  });
+
+  it('desactiva modo mantenimiento (maintenance=false → ACTIVE)', async () => {
+    const { svc, prisma } = makeCrudDeps();
+    (prisma.node.update as jest.Mock).mockResolvedValue({ ...FAKE_NODE, status: 'ACTIVE' });
+    await svc.setMaintenance(NODE_ID, false);
+    expect(prisma.node.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'ACTIVE' } }),
+    );
   });
 
   it('lanza BadRequestException en nodo OFFLINE', async () => {
@@ -328,5 +347,53 @@ describe('NodesService.reportAgentPing()', () => {
     (prisma.node.update as jest.Mock).mockResolvedValue({ ...FAKE_NODE, reputationScore: 60 });
     await svc2.reportAgentPing(NODE_ID);
     expect((eventBus as any).publish).toHaveBeenCalledWith(expect.objectContaining({ type: 'node.unhealthy' }));
+  });
+
+  it('asigna reputationScore=20 cuando overallStatus no es healthy ni degraded', async () => {
+    const { prisma } = makeCrudDeps();
+    const agentClient = {
+      healthCheck: jest.fn().mockResolvedValue({ data: { overallStatus: 'offline', diskUsedPercent: 50 } }),
+    } as unknown as NodeAgentClient;
+    const configEngine = { applyNodeConfig: jest.fn(), validateNodeConfig: jest.fn() } as unknown as ConfigEngineService;
+    const pki = { isEnabled: jest.fn().mockReturnValue(true), enrollNode: jest.fn(), getCaCertPem: jest.fn() } as unknown as PkiService;
+    const eventBus = { publish: jest.fn().mockResolvedValue(undefined) } as unknown as EventBusService;
+    const svc3 = new NodesService(prisma, agentClient, configEngine, pki, eventBus);
+    (prisma.node.update as jest.Mock).mockResolvedValue({ ...FAKE_NODE, reputationScore: 20 });
+    await svc3.reportAgentPing(NODE_ID);
+    expect(prisma.node.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ reputationScore: 20 }) }),
+    );
+  });
+
+  it('asigna capacityScore=50 cuando diskUsedPercent es undefined', async () => {
+    const { prisma } = makeCrudDeps();
+    const agentClient = {
+      healthCheck: jest.fn().mockResolvedValue({ data: { overallStatus: 'healthy' } }),
+    } as unknown as NodeAgentClient;
+    const configEngine = { applyNodeConfig: jest.fn(), validateNodeConfig: jest.fn() } as unknown as ConfigEngineService;
+    const pki = { isEnabled: jest.fn().mockReturnValue(true), enrollNode: jest.fn(), getCaCertPem: jest.fn() } as unknown as PkiService;
+    const eventBus = { publish: jest.fn().mockResolvedValue(undefined) } as unknown as EventBusService;
+    const svc4 = new NodesService(prisma, agentClient, configEngine, pki, eventBus);
+    (prisma.node.update as jest.Mock).mockResolvedValue({ ...FAKE_NODE, capacityScore: 50 });
+    await svc4.reportAgentPing(NODE_ID);
+    expect(prisma.node.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ capacityScore: 50 }) }),
+    );
+  });
+});
+
+describe('NodesService.updateHealth()', () => {
+  it('actualiza reputationScore y capacityScore del nodo', async () => {
+    const { svc, prisma } = makeCrudDeps();
+    (prisma.node.update as jest.Mock).mockResolvedValue({ ...FAKE_NODE, reputationScore: 90, capacityScore: 80 });
+
+    const result = await svc.updateHealth(NODE_ID, 90, 80);
+
+    expect(prisma.node.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ reputationScore: 90, capacityScore: 80 }),
+      }),
+    );
+    expect(result.reputationScore).toBe(90);
   });
 });

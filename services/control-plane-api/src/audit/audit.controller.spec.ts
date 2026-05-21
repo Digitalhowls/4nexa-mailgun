@@ -99,4 +99,13 @@ describe('AuditController (HTTP)', () => {
 
     expect(res.body).toMatchObject({ success: true, data: { totalChecked: 10 } });
   });
+
+  it('GET /audit/:id → 404 cuando el log no existe (rama !log → NotFoundException)', async () => {
+    auditServiceMock.findById.mockResolvedValueOnce(null);
+    const res = await request(app.getHttpServer() as Server)
+      .get(`/audit/${LOG_ID}`)
+      .expect(404);
+
+    expect(res.body.message).toContain(LOG_ID);
+  });
 });

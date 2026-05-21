@@ -321,4 +321,70 @@ describe('EventProcessorService', () => {
       await expect(mockCapturedProcessor!(makeJob(event))).resolves.not.toThrow();
     });
   });
+
+  // ─── worker.on('failed') ──────────────────────────────────────────────────
+
+  describe('worker.on("failed") handler', () => {
+    it('no llama a moveJobToDlq cuando job es null', () => {
+      const failedCb = (mockWorkerOn as jest.Mock).mock.calls.find(([e]: [string]) => e === 'failed')[1];
+      failedCb(null, new Error('test error'));
+      expect(mockEventBusMoveJobToDlq).not.toHaveBeenCalled();
+    });
+
+    it('no llama a moveJobToDlq cuando intentos no se han agotado', () => {
+      const failedCb = (mockWorkerOn as jest.Mock).mock.calls.find(([e]: [string]) => e === 'failed')[1];
+      failedCb(
+        { id: 'j1', attemptsMade: 1, opts: { attempts: 3 }, name: 'ev.test', data: {} },
+        new Error('retry'),
+      );
+      expect(mockEventBusMoveJobToDlq).not.toHaveBeenCalled();
+    });
+
+    it('llama a moveJobToDlq cuando los intentos se han agotado', () => {
+      const failedCb = (mockWorkerOn as jest.Mock).mock.calls.find(([e]: [string]) => e === 'failed')[1];
+      failedCb(
+        { id: 'j2', attemptsMade: 3, opts: { attempts: 3 }, name: 'ev.exhausted', data: {} },
+        new Error('exhausted'),
+      );
+      expect(mockEventBusMoveJobToDlq).toHaveBeenCalled();
+    });
+
+    it('usa 1 como valor por defecto de attempts cuando opts no lo define (rama ?? 1)', () => {
+      const failedCb = (mockWorkerOn as jest.Mock).mock.calls.find(([e]: [string]) => e === 'failed')[1];
+      jest.clearAllMocks();
+      failedCb(
+        { id: 'j3', attemptsMade: 1, opts: {}, name: 'ev.noOpts', data: {} },
+        new Error('no opts'),
+      );
+      // attemptsMade(1) >= attempts ?? 1 → agotado
+      expect(mockEventBusMoveJobToDlq).toHaveBeenCalled();
+    });
+  });
+
+  // ─── worker.on('error') ───────────────────────────────────────────────────
+
+  describe('worker.on("error") handler', () => {
+    it('no lanza al recibir error del worker', () => {
+      const errorCb = (mockWorkerOn as jest.Mock).mock.calls.find(([e]: [string]) => e === 'error')[1];
+      expect(() => errorCb(new Error('worker error'))).not.toThrow();
+    });
+  });
+
+  // ─── reputation.degraded ─────────────────────────────────────────────────
+
+  describe('process() — reputation.degraded', () => {
+    it('procesa reputation.degraded sin lanzar excepciones', async () => {
+      const event = {
+        type: 'reputation.degraded',
+        entityType: 'domain',
+        entityId: 'd1',
+        previousScore: 80,
+        newScore: 40,
+        reason: 'bounce rate alta',
+        occurredAt: new Date().toISOString(),
+      };
+
+      await expect(mockCapturedProcessor!(makeJob(event))).resolves.not.toThrow();
+    });
+  });
 });

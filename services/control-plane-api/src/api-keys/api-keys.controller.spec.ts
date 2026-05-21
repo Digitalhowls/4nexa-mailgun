@@ -71,4 +71,50 @@ describe('ApiKeysController', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
   });
+
+  it('POST /api-keys con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const savedTenantId = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server)
+        .post('/api-keys')
+        .send({ name: 'Key Null Tenant', scopes: ['SEND_MAIL'] });
+      expect(res.status).toBe(201);
+    } finally {
+      (adminUser as any).tenantId = savedTenantId;
+    }
+  });
+
+  it('GET /api-keys con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server).get('/api-keys');
+      expect(res.status).toBe(200);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
+  });
+
+  it('DELETE /api-keys/:id con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server).delete('/api-keys/key1');
+      expect(res.status).toBe(200);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
+  });
+
+  it('PATCH /api-keys/:id/rotate con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server).patch('/api-keys/key1/rotate');
+      expect(res.status).toBe(200);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
+  });
 });

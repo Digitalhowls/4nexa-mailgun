@@ -99,6 +99,16 @@ describe('NodeAssignmentService', () => {
       const scoreEmpty = service.computeScore(makeNode({ currentTenants: 0, maxTenants: 50 }));
       expect(scoreEmpty).toBeGreaterThan(score);
     });
+
+    it('devuelve capacityRatio=0 cuando maxTenants es 0 (cubre línea 81)', () => {
+      const score = service.computeScore(makeNode({ currentTenants: 0, maxTenants: 0 }));
+      expect(score).toBeGreaterThanOrEqual(0);
+    });
+
+    it('usa warmupBonus=0 cuando warmupStatus no está en el mapa (cubre ?? 0 línea 83)', () => {
+      const score = service.computeScore(makeNode({ warmupStatus: 'UNKNOWN_STATUS' }));
+      expect(score).toBeGreaterThanOrEqual(0);
+    });
   });
 
   // ─── findBestNode() ────────────────────────────────────────────────────────
@@ -107,6 +117,12 @@ describe('NodeAssignmentService', () => {
     it('devuelve null si no hay nodos disponibles', async () => {
       (prisma.node.findMany as jest.Mock).mockResolvedValue([]);
       const result = await service.findBestNode({});
+      expect(result).toBeNull();
+    });
+
+    it('usa query={} por defecto cuando se llama sin argumentos (cubre línea 98)', async () => {
+      (prisma.node.findMany as jest.Mock).mockResolvedValue([]);
+      const result = await service.findBestNode(); // sin args → default = {}
       expect(result).toBeNull();
     });
 
@@ -190,6 +206,22 @@ describe('NodeAssignmentService', () => {
       (prisma.node.findMany as jest.Mock).mockResolvedValue([]);
       await expect(service.assignTenantToNode('tenant-1', {})).rejects.toThrow(UnprocessableEntityException);
     });
+
+    it('auto-asigna tenant al mejor nodo disponible vía findBestNode (cubre línea 429)', async () => {
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue({ id: 'tenant-1', nodeId: null });
+      // findBestNode encontrará este nodo
+      (prisma.node.findMany as jest.Mock).mockResolvedValue([
+        makeNode({ id: 'node-best', status: 'ACTIVE', currentTenants: 2, maxTenants: 50 }),
+      ]);
+      // assignTenantToNode luego hace findUnique del nodo target
+      (prisma.node.findUnique as jest.Mock).mockResolvedValue(
+        makeNode({ id: 'node-best', status: 'ACTIVE', currentTenants: 2, maxTenants: 50 }),
+      );
+      (prisma.tenant.update as jest.Mock).mockResolvedValue({ id: 'tenant-1' });
+
+      const result = await service.assignTenantToNode('tenant-1', {}); // sin nodeId → auto-assign
+      expect(result.newNodeId).toBe('node-best');
+    });
   });
 
   // ─── assignDomainToNode() ─────────────────────────────────────────────────
@@ -235,6 +267,31 @@ describe('NodeAssignmentService', () => {
       expect(result.nodeId).toBe('node-1');
       expect(result.migratedTenants).toBe(0);
       expect(result.migratedDomains).toBe(0);
+    });
+
+    it('migra tenants y dominios con éxito incrementando contadores (líneas 332 y 350)', async () => {
+      // Nodo a drenar
+      (prisma.node.findUnique as jest.Mock)
+        .mockResolvedValueOnce(makeNode({ id: 'node-1', status: 'ACTIVE' })) // drainNode check
+        .mockResolvedValue(makeNode({ id: 'node-target', status: 'ACTIVE', currentTenants: 1, maxTenants: 50 })); // assignTenantToNode y assignDomainToNode
+      (prisma.node.update as jest.Mock).mockResolvedValue({});
+      (prisma.tenant.findMany as jest.Mock).mockResolvedValue([{ id: 't-migrate' }]);
+      (prisma.domain.findMany as jest.Mock).mockResolvedValue([{ id: 'd-migrate' }]);
+      // findBestNode devuelve el nodo target
+      (prisma.node.findMany as jest.Mock).mockResolvedValue([
+        makeNode({ id: 'node-target', status: 'ACTIVE', currentTenants: 1, maxTenants: 50 }),
+      ]);
+      // assignTenantToNode: tenant existe
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue({ id: 't-migrate', nodeId: 'node-1' });
+      (prisma.tenant.update as jest.Mock).mockResolvedValue({ id: 't-migrate' });
+      // assignDomainToNode: domain existe
+      (prisma.domain.findUnique as jest.Mock).mockResolvedValue({ id: 'd-migrate', nodeId: 'node-1' });
+      (prisma.domain.update as jest.Mock).mockResolvedValue({ id: 'd-migrate' });
+
+      const result = await service.drainNode('node-1', {});
+
+      expect(result.migratedTenants).toBe(1);
+      expect(result.migratedDomains).toBe(1);
     });
 
     it('lanza BadRequestException si el nodo ya está DRAINING', async () => {
@@ -318,5 +375,206 @@ describe('NodeAssignmentService', () => {
       (prisma.node.findUnique as jest.Mock).mockResolvedValue(null);
       await expect(service.setWarmupStatus('bad-id', { warmupStatus: 'WARM' })).rejects.toThrow(NotFoundException);
     });
+
+    it('actualiza warmupEndsAt cuando se proporciona (cubre línea 413)', async () => {
+      (prisma.node.findUnique as jest.Mock).mockResolvedValue(makeNode());
+      const endsAt = new Date(Date.now() + 86400000).toISOString();
+
+      await service.setWarmupStatus('node-1', { warmupStatus: 'WARM', warmupEndsAt: endsAt });
+
+      expect(prisma.node.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ warmupEndsAt: expect.any(Date) }),
+        }),
+      );
+    });
+  });
+
+  // ─── Branches adicionales ────────────────────────────────────────────────
+
+  describe('drainNode() — branches adicionales', () => {
+    it('lanza BadRequestException si el nodo está QUARANTINED', async () => {
+      (prisma.node.findUnique as jest.Mock).mockResolvedValue(
+        makeNode({ status: 'QUARANTINED' }),
+      );
+      await expect(
+        service.drainNode('node-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('lanza NotFoundException si el nodo no existe', async () => {
+      (prisma.node.findUnique as jest.Mock).mockResolvedValue(null);
+      await expect(service.drainNode('non-existent')).rejects.toThrow(NotFoundException);
+    });
+
+    it('usa targetNodeId para migrar con éxito (cubre "nodeId" in target truthy, líneas 330/348)', async () => {
+      (prisma.node.findUnique as jest.Mock)
+        .mockResolvedValueOnce(makeNode({ id: 'node-1', status: 'ACTIVE' }))
+        .mockResolvedValue(makeNode({ id: 'node-target', status: 'ACTIVE', currentTenants: 1, maxTenants: 50 }));
+      (prisma.node.update as jest.Mock).mockResolvedValue({});
+      (prisma.tenant.findMany as jest.Mock).mockResolvedValue([{ id: 't-1' }]);
+      (prisma.domain.findMany as jest.Mock).mockResolvedValue([{ id: 'd-1' }]);
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue({ id: 't-1', nodeId: 'node-1' });
+      (prisma.tenant.update as jest.Mock).mockResolvedValue({ id: 't-1' });
+      (prisma.domain.findUnique as jest.Mock).mockResolvedValue({ id: 'd-1', nodeId: 'node-1' });
+      (prisma.domain.update as jest.Mock).mockResolvedValue({ id: 'd-1' });
+
+      // Con targetNodeId → preResolvedTarget = { nodeId: 'node-target' } → 'nodeId' in target = true
+      const result = await service.drainNode('node-1', { targetNodeId: 'node-target' });
+
+      expect(result.migratedTenants).toBe(1);
+      expect(result.migratedDomains).toBe(1);
+    });
+  });
+
+  describe('assignDomainToNode() — branches adicionales', () => {
+    it('lanza NotFoundException si el nodo no existe', async () => {
+      (prisma.domain.findUnique as jest.Mock).mockResolvedValue({
+        id: 'd1', nodeId: null,
+      });
+      (prisma.node.findUnique as jest.Mock).mockResolvedValue(null);
+      // resolveTargetNode devuelve 'bad-node' al pasarlo como input.nodeId
+      await expect(
+        service.assignDomainToNode('d1', { nodeId: 'bad-node' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('lanza BadRequestException si el nodo no está ACTIVE', async () => {
+      (prisma.domain.findUnique as jest.Mock).mockResolvedValue({
+        id: 'd1', nodeId: null,
+      });
+      (prisma.node.findUnique as jest.Mock).mockResolvedValue(
+        makeNode({ status: 'DRAINING' }),
+      );
+      await expect(
+        service.assignDomainToNode('d1', { nodeId: 'node-1' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('assignTenantToNode() — NotFoundException para nodo', () => {
+    it('lanza NotFoundException si el nodo no existe', async () => {
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue({ id: 't1', nodeId: null });
+      (prisma.node.findUnique as jest.Mock).mockResolvedValue(null);
+      await expect(
+        service.assignTenantToNode('t1', { nodeId: 'bad-node' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('quarantineNode() — branches adicionales', () => {
+    it('lanza NotFoundException si el nodo no existe', async () => {
+      (prisma.node.findUnique as jest.Mock).mockResolvedValue(null);
+      await expect(
+        service.quarantineNode('non-existent', { reason: 'test' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('reactivateNode() — branches adicionales', () => {
+    it('lanza NotFoundException si el nodo no existe', async () => {
+      (prisma.node.findUnique as jest.Mock).mockResolvedValue(null);
+      await expect(service.reactivateNode('bad-id')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('findBestNode() — providerPreference sin coincidencias', () => {
+    it('usa todos los nodos si ninguno coincide con el providerPreference', async () => {
+      (prisma.node.findMany as jest.Mock).mockResolvedValue([
+        makeNode({ id: 'n1', provider: 'hetzner' }),
+        makeNode({ id: 'n2', provider: 'hetzner' }),
+      ]);
+
+      const result = await service.findBestNode({ providerPreference: 'aws' });
+
+      // Al no haber match, se usan todos los nodos disponibles → devuelve el mejor
+      expect(result).not.toBeNull();
+    });
+  });
+
+  describe('drainNode() — preResolvedTarget null (sin nodos disponibles)', () => {
+    it('incrementa failedMigrations para tenants y dominios cuando no hay nodo target', async () => {
+      // nodo existe y está ACTIVE, NO está DRAINING
+      (prisma.node.findUnique as jest.Mock).mockResolvedValue(
+        makeNode({ status: 'ACTIVE' }),
+      );
+      // update del nodo a DRAINING
+      (prisma.node.update as jest.Mock).mockResolvedValue(makeNode({ status: 'DRAINING' }));
+      // tenants asignados al nodo
+      (prisma.tenant.findMany as jest.Mock).mockResolvedValue([{ id: 't-drain-1' }]);
+      // dominios asignados al nodo
+      (prisma.domain.findMany as jest.Mock).mockResolvedValue([{ id: 'd-drain-1' }]);
+      // findBestNode → no hay nodos disponibles
+      (prisma.node.findMany as jest.Mock).mockResolvedValue([]);
+
+      const result = await service.drainNode('node-1', {});
+
+      // preResolvedTarget será null → las migraciones fallan
+      expect(result.failedMigrations).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('assignTenantToNode() — resolveTargetNode con nodeId definido', () => {
+    it('usa el nodeId directamente cuando está en el input', async () => {
+      // El nodeId viene en el input → resolveTargetNode lo retorna directo (línea 429)
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue({ id: 't1', nodeId: null });
+      (prisma.node.findUnique as jest.Mock).mockResolvedValue(makeNode({ status: 'ACTIVE', currentTenants: 1, maxTenants: 10 }));
+      (prisma.tenant.update as jest.Mock).mockResolvedValue({ id: 't1' });
+
+      const result = await service.assignTenantToNode('t1', { nodeId: 'node-1' });
+
+      expect(result).toBeDefined();
+    });
+  });
+
+  describe('drainNode() — catch cuando assignTenantToNode o assignDomainToNode lanzan', () => {
+    it('incrementa failedMigrations cuando assignTenantToNode lanza (líneas 330-334)', async () => {
+      (prisma.node.findUnique as jest.Mock)
+        .mockResolvedValueOnce(makeNode({ status: 'ACTIVE' })) // drainNode check
+        .mockResolvedValue(makeNode({ status: 'ACTIVE', currentTenants: 0, maxTenants: 0 })); // resolveTargetNode best
+      (prisma.node.update as jest.Mock).mockResolvedValue(makeNode({ status: 'DRAINING' }));
+      (prisma.tenant.findMany as jest.Mock).mockResolvedValue([{ id: 't-fail' }]);
+      (prisma.domain.findMany as jest.Mock).mockResolvedValue([]);
+      // findBestNode devuelve un nodo con id
+      (prisma.node.findMany as jest.Mock).mockResolvedValue([
+        makeNode({ id: 'node-target', status: 'ACTIVE', currentTenants: 1, maxTenants: 10 }),
+      ]);
+      // assignTenantToNode llamará a prisma.tenant.findUnique → lanzar error
+      (prisma.tenant.findUnique as jest.Mock).mockRejectedValue(new Error('assignment failed'));
+
+      const result = await service.drainNode('node-1', {});
+
+      expect(result.failedMigrations).toBeGreaterThanOrEqual(1);
+    });
+
+    it('incrementa failedMigrations cuando assignDomainToNode lanza (líneas 348-352)', async () => {
+      (prisma.node.findUnique as jest.Mock)
+        .mockResolvedValueOnce(makeNode({ status: 'ACTIVE' }))
+        .mockResolvedValue(makeNode({ status: 'ACTIVE', currentTenants: 0, maxTenants: 0 }));
+      (prisma.node.update as jest.Mock).mockResolvedValue(makeNode({ status: 'DRAINING' }));
+      (prisma.tenant.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.domain.findMany as jest.Mock).mockResolvedValue([{ id: 'd-fail' }]);
+      (prisma.node.findMany as jest.Mock).mockResolvedValue([
+        makeNode({ id: 'node-target', status: 'ACTIVE', currentTenants: 1, maxTenants: 10 }),
+      ]);
+      // assignDomainToNode llamará a prisma.domain.findUnique → lanzar error
+      (prisma.domain.findUnique as jest.Mock).mockRejectedValue(new Error('domain assignment failed'));
+
+      const result = await service.drainNode('node-1', {});
+
+      expect(result.failedMigrations).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // ─── Branches: parámetros por defecto (líneas 141, 217) ──────────────────
+
+  it('assignTenantToNode: usa input={} por defecto cuando no se pasa segundo arg (línea 141)', async () => {
+    (prisma.tenant.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect((service.assignTenantToNode as Function)('missing-tenant')).rejects.toThrow(NotFoundException);
+  });
+
+  it('assignDomainToNode: usa input={} por defecto cuando no se pasa segundo arg (línea 217)', async () => {
+    (prisma.domain.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect((service.assignDomainToNode as Function)('missing-domain')).rejects.toThrow(NotFoundException);
   });
 });

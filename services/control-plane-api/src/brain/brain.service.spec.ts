@@ -127,6 +127,55 @@ describe('upsertCell — actualizar existente', () => {
     );
     expect(result.version).toBe(2);
   });
+
+  it('actualiza celda con expiresAt (cubre rama expiresAt truthy en update)', async () => {
+    const existing = makeCell();
+    const updated = makeCell({ expiresAt: new Date('2027-01-01'), version: 2 });
+    prisma.memoryCell.findFirst.mockResolvedValue(existing);
+    prisma.memoryCell.update.mockResolvedValue(updated);
+
+    await service.upsertCell({
+      tenantId: 'tenant-1',
+      scope: 'REPUTATION',
+      key: 'node:node-1:score',
+      payload: { score: 70 },
+      expiresAt: '2027-01-01T00:00:00Z',
+    });
+
+    expect(prisma.memoryCell.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ expiresAt: expect.any(Date) }),
+      }),
+    );
+  });
+});
+
+// ─── upsertCell — crear con expiresAt y sin tenantId ─────────────────────────
+
+describe('upsertCell — crear con expiresAt y writtenBy explícito', () => {
+  it('crea celda con expiresAt (rama truthy en create) y sin tenantId (rama default=null)', async () => {
+    const cell = makeCell({ expiresAt: new Date('2027-01-01'), tenantId: null });
+    prisma.memoryCell.findFirst.mockResolvedValue(null);
+    prisma.memoryCell.create.mockResolvedValue(cell);
+
+    const result = await service.upsertCell(
+      {
+        scope: 'REPUTATION',
+        key: 'node:node-1:score',
+        payload: { score: 50 },
+        expiresAt: '2027-01-01T00:00:00Z',
+        // sin tenantId → usa default null
+      },
+      'custom-writer',
+    );
+
+    expect(prisma.memoryCell.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ expiresAt: expect.any(Date) }),
+      }),
+    );
+    expect(result.id).toBe('cell-uuid-1');
+  });
 });
 
 // ─── upsertCell — anomalías de reputación ────────────────────────────────────
@@ -207,6 +256,14 @@ describe('getCell', () => {
       service.getCell('tenant-1', 'REPUTATION', 'no-existe'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  it('lanza NotFoundException con mensaje (sistema) cuando tenantId es null', async () => {
+    prisma.memoryCell.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.getCell(null, 'REPUTATION', 'no-existe'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
 });
 
 // ─── queryCells ───────────────────────────────────────────────────────────────
@@ -246,6 +303,40 @@ describe('queryCells', () => {
       }),
     );
   });
+
+  it('filtra por keyPrefix cuando se indica', async () => {
+    prisma.memoryCell.findMany.mockResolvedValue([]);
+    prisma.memoryCell.count.mockResolvedValue(0);
+
+    await service.queryCells({
+      tenantId: 'tenant-1',
+      keyPrefix: 'node:',
+      includeExpired: false,
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(prisma.memoryCell.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ key: { startsWith: 'node:' } }),
+      }),
+    );
+  });
+
+  it('no filtra por expiresAt cuando includeExpired es true', async () => {
+    prisma.memoryCell.findMany.mockResolvedValue([]);
+    prisma.memoryCell.count.mockResolvedValue(0);
+
+    await service.queryCells({
+      tenantId: 'tenant-1',
+      includeExpired: true,
+      limit: 50,
+      offset: 0,
+    });
+
+    const callArgs = prisma.memoryCell.findMany.mock.calls[0][0];
+    expect(callArgs.where?.OR).toBeUndefined();
+  });
 });
 
 // ─── deleteCell ───────────────────────────────────────────────────────────────
@@ -269,6 +360,18 @@ describe('deleteCell', () => {
     await expect(
       service.deleteCell({ tenantId: 'tenant-1', scope: 'REPUTATION', key: 'no-existe' }),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('elimina celda sin tenantId (usa default null — cubre rama tenantId=null en deleteCell)', async () => {
+    const cell = makeCell({ tenantId: null });
+    prisma.memoryCell.findFirst.mockResolvedValue(cell);
+    prisma.memoryCell.delete.mockResolvedValue(cell);
+
+    await expect(
+      service.deleteCell({ scope: 'REPUTATION', key: 'node:node-1:score' }),
+    ).resolves.toBeUndefined();
+
+    expect(prisma.memoryCell.delete).toHaveBeenCalledWith({ where: { id: cell.id } });
   });
 });
 
@@ -296,5 +399,13 @@ describe('sweepExpiredCells', () => {
         where: expect.objectContaining({ expiresAt: expect.any(Object) }),
       }),
     );
+  });
+});
+
+// ─── onModuleInit ─────────────────────────────────────────────────────────────
+
+describe('onModuleInit', () => {
+  it('loguea mensaje de inicio sin errores', () => {
+    expect(() => service.onModuleInit()).not.toThrow();
   });
 });

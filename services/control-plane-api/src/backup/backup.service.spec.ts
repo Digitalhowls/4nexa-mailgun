@@ -125,6 +125,32 @@ describe('BackupService', () => {
       );
     });
 
+    it('gestiona error no-Error en el catch (rama String(err))', async () => {
+      (prisma.node.findUnique as jest.Mock).mockResolvedValue(MOCK_NODE);
+      (prisma.backupJob.create as jest.Mock).mockResolvedValue(MOCK_JOB);
+      (prisma.backupJob.update as jest.Mock)
+        .mockResolvedValueOnce({ ...MOCK_JOB, status: BackupStatus.RUNNING })
+        .mockResolvedValueOnce({ ...MOCK_JOB, status: BackupStatus.FAILED, errorMessage: 'agent crash' });
+      // Lanzamos un string (no un Error) para cubrir la rama String(err)
+      (agentClient.backup as jest.Mock).mockRejectedValue('agent crash');
+
+      const result = await service.triggerBackup({ nodeId: 'node-uuid-1', type: BackupType.FULL_NODE });
+
+      expect(result.status).toBe(BackupStatus.FAILED);
+    });
+
+    it('completa con snapshotId null cuando el agente no devuelve datos', async () => {
+      (prisma.node.findUnique as jest.Mock).mockResolvedValue(MOCK_NODE);
+      (prisma.backupJob.create as jest.Mock).mockResolvedValue(MOCK_JOB);
+      (prisma.backupJob.update as jest.Mock).mockResolvedValue({ ...MOCK_JOB, status: BackupStatus.COMPLETED });
+      // Agente devuelve respuesta sin data → result es undefined → ramas ?? null y ?: null
+      (agentClient.backup as jest.Mock).mockResolvedValue({ success: true });
+
+      const result = await service.triggerBackup({ nodeId: 'node-uuid-1', type: BackupType.FULL_NODE });
+
+      expect(result.status).toBe(BackupStatus.COMPLETED);
+    });
+
     it('mapea BackupType.CONFIGURATION → tipo "config" para el agente', async () => {
       (prisma.node.findUnique as jest.Mock).mockResolvedValue(MOCK_NODE);
       (prisma.backupJob.create as jest.Mock).mockResolvedValue({ ...MOCK_JOB, type: BackupType.CONFIGURATION });
@@ -188,6 +214,17 @@ describe('BackupService', () => {
 
       expect(prisma.backupJob.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { nodeId: 'node-uuid-1', status: BackupStatus.FAILED } }),
+      );
+    });
+
+    it('aplica filtro de tipo si se proporciona', async () => {
+      (prisma.backupJob.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.backupJob.count as jest.Mock).mockResolvedValue(0);
+
+      await service.listJobs({ type: BackupType.CONFIGURATION, page: 1, pageSize: 10 });
+
+      expect(prisma.backupJob.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { type: BackupType.CONFIGURATION } }),
       );
     });
   });

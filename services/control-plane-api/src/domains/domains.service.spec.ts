@@ -247,4 +247,90 @@ describe('DomainsService', () => {
       expect(result.status).toBe('DELETED');
     });
   });
+
+  // ─── findAll() branches extra ─────────────────────────────────────────────
+
+  describe('findAll() — filtros opcionales', () => {
+    it('aplica filtros status y search cuando se pasan', async () => {
+      (prisma.domain.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.domain.count as jest.Mock).mockResolvedValue(0);
+      await service.findAll({ status: 'ACTIVE' as any, search: 'test', page: 1, pageSize: 10 });
+      expect(prisma.domain.findMany).toHaveBeenCalled();
+    });
+  });
+
+  // ─── verifyDns() branches extra ───────────────────────────────────────────
+
+  describe('verifyDns() — branches de status y verifiedAt', () => {
+    const dnsFailResult = {
+      domainId: 'd1', domain: 'example.com', checkedAt: new Date(), allPassed: false,
+      mx: { type: 'MX', status: 'INVALID', found: null, expected: 'MX', message: null },
+      spf: { type: 'SPF', status: 'INVALID', found: null, expected: 'SPF', message: null },
+      dkim: { type: 'DKIM', status: 'INVALID', found: null, expected: 'DKIM', message: null },
+      dmarc: { type: 'DMARC', status: 'INVALID', found: null, expected: 'DMARC', message: null },
+      ptr: { type: 'PTR', status: 'INVALID', found: null, expected: 'PTR', message: null },
+    };
+
+    it('status → PENDING_DNS cuando allValid=false y dominio estaba ACTIVE', async () => {
+      const domainActive = { id: 'd1', domain: 'ex.com', tenantId: 't1', status: 'ACTIVE', dkimSelector: 'mail', dkimPublicKey: 'pk', verifiedAt: new Date() };
+      const dns = { checkDomain: jest.fn().mockResolvedValue(dnsFailResult) } as unknown as import('./dns-checker.service').DnsCheckerService;
+      (prisma.domain.findFirst as jest.Mock).mockResolvedValue(domainActive);
+      (prisma.domain.update as jest.Mock).mockResolvedValue({ ...domainActive, status: 'PENDING_DNS' });
+      const svc = new DomainsService(prisma, dns, makeConfig(), makeEventBus());
+      const result = await svc.verifyDns('d1');
+      expect(prisma.domain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'PENDING_DNS' }) }),
+      );
+      expect(result).toBeDefined();
+    });
+
+    it('status permanece igual cuando allValid=false y dominio no estaba ACTIVE', async () => {
+      const domainPending = { id: 'd1', domain: 'ex.com', tenantId: 't1', status: 'PENDING_DNS', dkimSelector: 'mail', dkimPublicKey: 'pk', verifiedAt: null };
+      const dns = { checkDomain: jest.fn().mockResolvedValue(dnsFailResult) } as unknown as import('./dns-checker.service').DnsCheckerService;
+      (prisma.domain.findFirst as jest.Mock).mockResolvedValue(domainPending);
+      (prisma.domain.update as jest.Mock).mockResolvedValue({ ...domainPending });
+      const svc = new DomainsService(prisma, dns, makeConfig(), makeEventBus());
+      await svc.verifyDns('d1');
+      expect(prisma.domain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'PENDING_DNS' }) }),
+      );
+    });
+
+    it('verifiedAt se mantiene si ya estaba establecido y allValid=true', async () => {
+      const existingVerifiedAt = new Date('2025-01-01');
+      const domainVerified = { id: 'd1', domain: 'ex.com', tenantId: 't1', status: 'ACTIVE', dkimSelector: 'mail', dkimPublicKey: 'pk', verifiedAt: existingVerifiedAt };
+      const dnsOkResult = {
+        domainId: 'd1', domain: 'ex.com', checkedAt: new Date(), allPassed: true,
+        mx: { type: 'MX', status: 'VALID', found: null, expected: 'MX', message: null },
+        spf: { type: 'SPF', status: 'VALID', found: null, expected: 'SPF', message: null },
+        dkim: { type: 'DKIM', status: 'VALID', found: null, expected: 'DKIM', message: null },
+        dmarc: { type: 'DMARC', status: 'VALID', found: null, expected: 'DMARC', message: null },
+        ptr: { type: 'PTR', status: 'VALID', found: null, expected: 'PTR', message: null },
+      };
+      const dns = { checkDomain: jest.fn().mockResolvedValue(dnsOkResult) } as unknown as import('./dns-checker.service').DnsCheckerService;
+      (prisma.domain.findFirst as jest.Mock).mockResolvedValue(domainVerified);
+      (prisma.domain.update as jest.Mock).mockResolvedValue({ ...domainVerified });
+      const svc = new DomainsService(prisma, dns, makeConfig(), makeEventBus());
+      await svc.verifyDns('d1');
+      // verifiedAt no se renueva porque ya estaba establecido
+      expect(prisma.domain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ verifiedAt: existingVerifiedAt }) }),
+      );
+    });
+  });
+
+  // ─── getDnsInstructions() — dkimPublicKey null ────────────────────────────
+
+  describe('getDnsInstructions() — dkimPublicKey nulo', () => {
+    it('usa cadena vacía cuando dkimPublicKey es null', async () => {
+      (prisma.domain.findFirst as jest.Mock).mockResolvedValue({
+        id: 'd1', domain: 'example.com', status: 'PENDING_DNS',
+        dkimSelector: 'mail2026', dkimPublicKey: null,
+      });
+      const result = await service.getDnsInstructions('d1');
+      const dkimRecord = result.records.find((r: any) => r.name.includes('_domainkey'));
+      expect(dkimRecord?.value).toContain('p=');
+      expect(dkimRecord?.value.endsWith('p=')).toBe(true);
+    });
+  });
 });

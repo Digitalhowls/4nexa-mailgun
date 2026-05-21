@@ -177,3 +177,13 @@ describe('PkiService', () => {
     });
   });
 });
+
+// ─── bufferToPem con buffer vacío (rama ?? [] en línea 149) ──────────────────
+
+describe('PkiService.bufferToPem — buffer vacío', () => {
+  it('retorna PEM sin líneas de contenido cuando buffer está vacío (b64.match → null → ?? [])', () => {
+    // Acceso a método privado estático para cubrir la rama ?? []
+    const pem = (PkiService as any).bufferToPem(new ArrayBuffer(0), 'EMPTY');
+    expect(pem).toBe('-----BEGIN EMPTY-----\n\n-----END EMPTY-----\n');
+  });
+});

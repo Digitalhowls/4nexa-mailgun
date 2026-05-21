@@ -37,7 +37,7 @@ interface SyncResult {
 
 export default function OrizonPage() {
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
-  const [webhookResult, setWebhookResult] = useState<unknown>(null);
+  const [webhookResult, setWebhookResult] = useState<Record<string, unknown> | null>(null);
 
   const syncForm = useForm<SyncForm>({ resolver: zodResolver(syncSchema) });
   const webhookForm = useForm<WebhookForm>({
@@ -65,7 +65,7 @@ export default function OrizonPage() {
       } catch {
         throw new Error('JSON del payload inválido');
       }
-      return orizonApi.sendWebhook({ event, data: parsed });
+      return orizonApi.sendWebhook({ event, payload: parsed as Record<string, unknown>, hmacSignature: '' });
     },
     onSuccess: (data) => {
       setWebhookResult(data);

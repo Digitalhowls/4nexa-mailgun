@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { AntispamService } from './antispam.service';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -180,5 +181,61 @@ describe('evaluateMessage()', () => {
     const svc = new AntispamService(prisma as any, makeAudit() as any);
     const result = await svc.evaluateMessage(DOMAIN_ID, { senderEmail: 'known@safe.com', spamScore: 0.1 });
     expect(result.action).toBe('ACCEPT');
+  });
+
+  it('usa spamScore=0 por defecto cuando no se pasa (cubre ?? 0 en no_policy, línea 138)', async () => {
+    const svc = makeService({ policy: null });
+    const result = await svc.evaluateMessage(DOMAIN_ID, { senderEmail: 'any@example.com' });
+    expect(result.action).toBe('ACCEPT');
+    expect(result.score).toBe(0);
+  });
+
+  it('senderDomain es cadena vacía cuando email no tiene @ (cubre ?? \'\' en línea 142)', async () => {
+    const svc = makeService();
+    // sin @ → senderDomain = ''
+    const result = await svc.evaluateMessage(DOMAIN_ID, { senderEmail: 'sinArroba', spamScore: 0.2 });
+    expect(result.action).toBe('ACCEPT');
+  });
+
+  it('usa spamScore=0 por defecto con política activa y sin spamScore (cubre default-arg línea 141)', async () => {
+    const svc = makeService(); // POLICY_FIXTURE habilitado
+    const result = await svc.evaluateMessage(DOMAIN_ID, { senderEmail: 'user@other.com' } as any);
+    expect(result.action).toBe('ACCEPT');
+    expect(result.score).toBe(0);
+  });
+});
+
+// ─── deletePolicy() ──────────────────────────────────────────────────────────
+
+describe('deletePolicy()', () => {
+  it('lanza NotFoundException si no existe la política', async () => {
+    const svc = makeService({ policy: null });
+    await expect(svc.deletePolicy(DOMAIN_ID)).rejects.toThrow(NotFoundException);
+  });
+
+  it('retorna deleted:true y audita cuando la política existe', async () => {
+    const audit = makeAudit();
+    const prisma = makePrisma();
+    const svc = new AntispamService(prisma as any, audit as any);
+
+    const result = await svc.deletePolicy(DOMAIN_ID, 'user-1');
+
+    expect(result).toEqual({ deleted: true });
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'antispam.policy_deleted' }),
+    );
+  });
+
+  it('audita con tenantId undefined cuando el dominio no se encuentra tras borrar (rama domain?.tenantId)', async () => {
+    const audit = makeAudit();
+    const prisma = makePrisma({ domain: null as any });
+    const svc = new AntispamService(prisma as any, audit as any);
+
+    const result = await svc.deletePolicy(DOMAIN_ID);
+
+    expect(result).toEqual({ deleted: true });
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: undefined }),
+    );
   });
 });

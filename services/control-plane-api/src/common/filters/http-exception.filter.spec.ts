@@ -104,4 +104,17 @@ describe('HttpExceptionFilter', () => {
     const call = send.mock.calls[0][0] as { error: Record<string, unknown> };
     expect(call.error.errors).toBeUndefined();
   });
+
+  it('usa defaults de message y code cuando body objeto no tiene esas claves (líneas 30-31)', () => {
+    const { host, send, reply } = makeHost();
+    // body objeto sin message ni code → activa ?? fallbacks
+    const exc = new HttpException({ status: 400 }, HttpStatus.BAD_REQUEST);
+
+    filter.catch(exc, host);
+
+    expect(reply.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+    const call = send.mock.calls[0][0] as { error: Record<string, unknown> };
+    expect(call.error.message).toBe('Error interno del servidor');
+    expect(call.error.code).toBe('INTERNAL_ERROR');
+  });
 });

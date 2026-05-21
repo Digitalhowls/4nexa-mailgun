@@ -1,50 +1,103 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # docker-compose.prod.yml — Producción
 # Uso: docker compose -f docker-compose.prod.yml up -d
-# Variables de entorno: cargadas desde /opt/4nexa/.env
+# Variables de entorno: cargadas desde /opt/4nexa-mailgun/.env
 # ──────────────────────────────────────────────────────────────────────────────
 
 networks:
-  4nexa-internal:
+  mailgun-internal:
     driver: bridge
-  4nexa-edge:
+  mailgun-edge:
     driver: bridge
 
 volumes:
   postgres-data:
   redis-data:
+  nginx-gateway:
 
 services:
+
+  # ── Nginx (reverse proxy + routing por subdominio) ─────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: mailgun_nginx
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT_HTTP:-80}:80"
+      - "${APP_PORT_HTTPS:-443}:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/maintenance.html:/usr/share/nginx/html/maintenance.html:ro
+      - nginx-gateway:/nginx-gateway:ro
+    networks:
+      - mailgun-edge
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/nginx-health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - control-plane-api
+      - admin-panel
+      - customer-panel
 
   # ── PostgreSQL ─────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
-    container_name: 4nexa-postgres
+    container_name: mailgun_db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-4nexa}
-      POSTGRES_USER: ${POSTGRES_USER:-4nexa}
+      POSTGRES_DB: ${POSTGRES_DB:-mailgun}
+      POSTGRES_USER: ${POSTGRES_USER:-mailgun}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
-      - 4nexa-internal
+      - mailgun-internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-4nexa}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mailgun}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  # ── PostgreSQL Backup (pg_dump diario, retención 30 días) ──────────────────
+  pgbackup:
+    image: postgres:16-alpine
+    container_name: mailgun_pgbackup
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mailgun}
+      POSTGRES_USER: ${POSTGRES_USER:-mailgun}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups/postgres:/backups
+    networks:
+      - mailgun-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: >
+      sh -c '
+        mkdir -p /backups
+        while true; do
+          FNAME="/backups/mailgun_$$(date +%Y%m%d_%H%M%S).sql.gz"
+          pg_dump -h postgres -U $$POSTGRES_USER $$POSTGRES_DB | gzip > $$FNAME
+          echo "Backup: $$FNAME"
+          find /backups -name "*.sql.gz" -mtime +30 -delete
+          sleep 86400
+        done
+      '
+
   # ── Redis ──────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    container_name: 4nexa-redis
+    container_name: mailgun_redis
     restart: unless-stopped
     command: redis-server --save 60 1 --requirepass ${REDIS_PASSWORD} --loglevel warning
     volumes:
       - redis-data:/data
     networks:
-      - 4nexa-internal
+      - mailgun-internal
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
@@ -54,7 +107,7 @@ services:
   # ── Control Plane API ──────────────────────────────────────────────────────
   control-plane-api:
     image: ghcr.io/digitalhowls/4nexa-mailgun/control-plane-api:latest
-    container_name: 4nexa-api
+    container_name: mailgun_api
     restart: unless-stopped
     depends_on:
       postgres:
@@ -64,7 +117,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-4nexa}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-4nexa}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mailgun}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-mailgun}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
@@ -72,22 +125,24 @@ services:
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       CORS_ORIGINS: ${CORS_ORIGINS}
+    expose:
+      - "3000"
     networks:
-      - 4nexa-internal
-      - 4nexa-edge
-    ports:
-      - "127.0.0.1:3000:3000"
+      - mailgun-internal
+      - mailgun-edge
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
       interval: 30s
       timeout: 10s
       start_period: 30s
       retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.scope=mailgun"
 
   # ── Admin Panel ────────────────────────────────────────────────────────────
   admin-panel:
     image: ghcr.io/digitalhowls/4nexa-mailgun/admin-panel:latest
-    container_name: 4nexa-admin
+    container_name: mailgun_admin
     restart: unless-stopped
     depends_on:
       control-plane-api:
@@ -95,27 +150,29 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      NEXT_PUBLIC_API_URL: ${API_PUBLIC_URL}
+      NEXT_PUBLIC_API_URL: ${API_PUBLIC_URL:-https://api.mail.4nexa.io/api/v1}
+    expose:
+      - "3000"
     networks:
-      - 4nexa-internal
-      - 4nexa-edge
-    ports:
-      - "127.0.0.1:3001:3000"
+      - mailgun-edge
+    labels:
+      - "com.centurylinklabs.watchtower.scope=mailgun"
 
   # ── Customer Panel ─────────────────────────────────────────────────────────
   customer-panel:
     image: ghcr.io/digitalhowls/4nexa-mailgun/customer-panel:latest
-    container_name: 4nexa-customer
+    container_name: mailgun_customer
     restart: unless-stopped
     depends_on:
       control-plane-api:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      PORT: 3001
-      NEXT_PUBLIC_API_URL: ${API_PUBLIC_URL}
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: ${API_PUBLIC_URL:-https://api.mail.4nexa.io/api/v1}
+    expose:
+      - "3000"
     networks:
-      - 4nexa-internal
-      - 4nexa-edge
-    ports:
-      - "127.0.0.1:3002:3001"
+      - mailgun-edge
+    labels:
+      - "com.centurylinklabs.watchtower.scope=mailgun"

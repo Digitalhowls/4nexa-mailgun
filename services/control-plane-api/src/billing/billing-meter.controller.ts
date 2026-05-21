@@ -36,6 +36,8 @@ export class BillingMeterController {
     UserRole.PLATFORM_ADMIN,
     UserRole.BILLING_AGENT,
     UserRole.SUPPORT_AGENT,
+    UserRole.TENANT_OWNER,
+    UserRole.TENANT_ADMIN,
   )
   @ApiOperation({ summary: 'Snapshot de uso actual del tenant' })
   async getMeterSnapshot(@Param('tenantId', ParseUUIDPipe) tenantId: string) {

@@ -1,0 +1,35 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# docker-compose.mail-node.yml — Node Agent (mail nodes)
+# Uso: docker compose -f docker-compose.mail-node.yml up -d
+# 
+# IMPORTANTE: Este archivo se despliega en los NODOS DE CORREO (mail nodes),
+# NO en el servidor de control principal.
+# ──────────────────────────────────────────────────────────────────────────────
+
+networks:
+  mailnode-internal:
+    driver: bridge
+
+services:
+
+  # ── Node Agent ─────────────────────────────────────────────────────────────
+  node-agent:
+    image: ghcr.io/digitalhowls/4nexa-mailgun/node-agent:latest
+    container_name: mailgun_node_agent
+    restart: unless-stopped
+    ports:
+      - "${AGENT_PORT:-3099}:3099"
+    environment:
+      NODE_ENV: production
+      PORT: 3099
+      CONTROL_PLANE_URL: ${CONTROL_PLANE_URL}
+      AGENT_SECRET: ${AGENT_SECRET}
+      NODE_ID: ${NODE_ID}
+    networks:
+      - mailnode-internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3099/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3

@@ -112,6 +112,14 @@ describe('ArchivalService', () => {
       );
     });
 
+    it('lanza BadRequestException si no hay política de archivado configurada (cubre línea 83)', async () => {
+      mockPrisma.mailbox.findFirst.mockResolvedValue({ id: 'm1' });
+      mockPrisma.archivalPolicy.findUnique.mockResolvedValue(null);
+      await expect(service.createLegalHold('t1', 'm1', 'litigio', 'u1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
     it('crea el legal hold y audita', async () => {
       mockPrisma.mailbox.findFirst.mockResolvedValue({ id: 'm1' });
       mockPrisma.archivalPolicy.findUnique.mockResolvedValue({ id: 'ap1', tenantId: 't1' });

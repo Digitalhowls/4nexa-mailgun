@@ -36,6 +36,8 @@ export class DeliverabilityController {
     UserRole.PLATFORM_ADMIN,
     UserRole.SUPPORT_AGENT,
     UserRole.ABUSE_ANALYST,
+    UserRole.TENANT_OWNER,
+    UserRole.TENANT_ADMIN,
   )
   @ApiOperation({ summary: 'Estado de governance de un dominio' })
   async getDomainGovernance(

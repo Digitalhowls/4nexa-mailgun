@@ -182,4 +182,42 @@ describe('simulate() live (dryRun=false)', () => {
       expect.objectContaining({ type: 'node.quarantined', nodeId: 'cccccccc-cccc-cccc-cccc-cccccccccccc' }),
     );
   });
+
+  it('salta quarantine_node cuando nodeId es undefined (rama if(nodeId) falsa)', async () => {
+    const prisma = makePrisma();
+    const svc = new DisasterRecoveryService(prisma as any, makeEventBus() as any, makeAudit() as any);
+
+    const result = await svc.simulate({
+      scenario: 'node_loss',
+      dryRun:   false,
+      // sin nodeId
+    });
+
+    expect(result.status).toBe('COMPLETED');
+    expect(prisma.node.update).not.toHaveBeenCalled();
+  });
+
+  it('usa hostname=unknown cuando findUnique retorna null (?? \'unknown\' rama)', async () => {
+    const prisma = makePrisma();
+    (prisma.node.findUnique as jest.Mock).mockResolvedValue(null);
+    const eventBus = makeEventBus();
+    const svc = new DisasterRecoveryService(prisma as any, eventBus as any, makeAudit() as any);
+
+    await svc.simulate({
+      scenario: 'node_loss',
+      dryRun:   false,
+      nodeId:   'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    });
+
+    expect(eventBus.publish).toHaveBeenCalledWith(
+      expect.objectContaining({ hostname: 'unknown' }),
+    );
+  });
+
+  it('ejecuta certificate_loss en modo live cubriendo case detect_cert_failure (línea 232)', async () => {
+    const svc = new DisasterRecoveryService(makePrisma() as any, makeEventBus() as any, makeAudit() as any);
+    const result = await svc.simulate({ scenario: 'certificate_loss', dryRun: false });
+    expect(result.status).toBe('COMPLETED');
+    expect(result.executed).toContain('detect_cert_failure');
+  });
 });

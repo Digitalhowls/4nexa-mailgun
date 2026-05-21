@@ -238,4 +238,35 @@ describe('getDomainGovernance', () => {
     expect(gov.warmupDailyLimit).toBe(500);
     expect(gov.nodeWarmupStatus).toBe('WARMING');
   });
+
+  it('marca blocked cuando no hay nodo asignado (línea 241)', async () => {
+    prisma.domain.findUnique.mockResolvedValue(makeDomain({ nodeId: null, node: null }));
+    const gov = await service.getDomainGovernance('domain-1');
+    expect(gov.allowed).toBe(false);
+    expect(gov.blockReasons).toContain('no_node_assigned');
+  });
+
+  it('marca blocked cuando reputación del nodo < umbral (línea 249)', async () => {
+    prisma.domain.findUnique.mockResolvedValue(
+      makeDomain({ node: { reputationScore: BLOCK_THRESHOLDS.nodeReputation - 1, warmupStatus: 'WARM' } }),
+    );
+    const gov = await service.getDomainGovernance('domain-1');
+    expect(gov.blockReasons.some((r: string) => r.startsWith('node_isolated'))).toBe(true);
+  });
+
+  it('marca blocked cuando trustScore del tenant < umbral (línea 252)', async () => {
+    prisma.domain.findUnique.mockResolvedValue(
+      makeDomain({ tenant: { trustScore: BLOCK_THRESHOLDS.tenantTrust - 1 } }),
+    );
+    const gov = await service.getDomainGovernance('domain-1');
+    expect(gov.blockReasons.some((r: string) => r.startsWith('tenant_blocked'))).toBe(true);
+  });
+
+  it('marca blocked cuando healthScore del dominio < umbral (línea 255)', async () => {
+    prisma.domain.findUnique.mockResolvedValue(
+      makeDomain({ healthScore: BLOCK_THRESHOLDS.domainHealth - 1 }),
+    );
+    const gov = await service.getDomainGovernance('domain-1');
+    expect(gov.blockReasons.some((r: string) => r.startsWith('domain_blocked'))).toBe(true);
+  });
 });

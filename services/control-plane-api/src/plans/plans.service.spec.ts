@@ -74,6 +74,32 @@ describe('PlansService', () => {
 
       await expect(svc.create(BASE_INPUT)).rejects.toThrow(ConflictException);
     });
+
+    it('usa valores por defecto cuando antivirusEnabled, backupRetentionDays y active son omitidos', async () => {
+      const prisma = makePrisma(false);
+      const svc = new PlansService(prisma);
+      const inputSinDefaults = {
+        name: 'Plan Sin Defaults',
+        maxDomains: 2,
+        maxMailboxes: 10,
+        storageTotalBytes: 5_368_709_120,
+        storagePerMailboxBytes: 268_435_456,
+        outboundDailyLimit: 500,
+        priceMonthly: '4.99',
+        priceYearly: '49.99',
+        // antivirusEnabled, backupRetentionDays, active no se pasan → ?? branches
+      } as Parameters<typeof svc.create>[0];
+      await svc.create(inputSinDefaults);
+      expect(prisma.plan.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            antivirusEnabled: false,
+            backupRetentionDays: 7,
+            active: true,
+          }),
+        }),
+      );
+    });
   });
 
   describe('findAll()', () => {
@@ -116,6 +142,15 @@ describe('PlansService', () => {
       await expect(svc.update(PLAN_ID, { name: 'Nombre Duplicado' })).rejects.toThrow(
         ConflictException,
       );
+    });
+
+    it('actualiza con storageTotalBytes y storagePerMailboxBytes (rama BigInt)', async () => {
+      const svc = new PlansService(makePrisma(true, false));
+      const result = await svc.update(PLAN_ID, {
+        storageTotalBytes: 21_474_836_480,
+        storagePerMailboxBytes: 1_073_741_824,
+      });
+      expect(result).toMatchObject({ id: PLAN_ID });
     });
   });
 

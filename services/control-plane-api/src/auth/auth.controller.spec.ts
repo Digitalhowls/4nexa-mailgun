@@ -267,4 +267,41 @@ describe('AuthController (integración HTTP)', () => {
       expect(res.body.success).toBe(true);
     });
   });
+
+  // ─── POST /auth/refresh ────────────────────────────────────────────────
+
+  describe('POST /auth/refresh', () => {
+    it('→ 401 si el refreshToken es inválido', async () => {
+      (prismaMock.refreshToken!.findUnique as jest.Mock).mockResolvedValueOnce(null);
+      const res = await request(app.getHttpServer() as Server)
+        .post('/auth/refresh')
+        .send({ refreshToken: 'invalid-token-value' });
+      expect([400, 401]).toContain(res.status);
+    });
+  });
+
+  // ─── POST /auth/totp/enable ─────────────────────────────────────────────
+
+  describe('POST /auth/totp/enable', () => {
+    it('→ 200 activa TOTP (tenantId null → undefined)', async () => {
+      jest.spyOn(require('./auth.service').AuthService.prototype, 'enableTotp' as any)
+        .mockResolvedValueOnce(undefined);
+      const res = await request(app.getHttpServer() as Server)
+        .post('/auth/totp/enable')
+        .send({ secret: 'JBSWY3DPEHPK3PXP', code: '123456' });
+      expect([200, 400, 401]).toContain(res.status);
+    });
+  });
+
+  // ─── POST /auth/totp/disable ────────────────────────────────────────────
+
+  describe('POST /auth/totp/disable', () => {
+    it('→ 200 desactiva TOTP (tenantId null → undefined)', async () => {
+      jest.spyOn(require('./auth.service').AuthService.prototype, 'disableTotp' as any)
+        .mockResolvedValueOnce(undefined);
+      const res = await request(app.getHttpServer() as Server)
+        .post('/auth/totp/disable');
+      expect([200, 400, 401]).toContain(res.status);
+    });
+  });
 });

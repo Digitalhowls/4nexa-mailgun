@@ -99,6 +99,11 @@ describe('BimiService', () => {
   });
 
   describe('getBimiDnsRecord', () => {
+    it('lanza NotFoundException si el dominio no existe en getBimiConfig (cubre línea 48)', async () => {
+      mockPrisma.domain.findFirst.mockResolvedValue(null);
+      await expect(service.getBimiDnsRecord('d1', 't1')).rejects.toThrow(NotFoundException);
+    });
+
     it('lanza NotFoundException si no hay configuración BIMI', async () => {
       mockPrisma.domain.findFirst.mockResolvedValue({ id: 'd1' });
       mockPrisma.bimiConfig.findUnique.mockResolvedValue(null);

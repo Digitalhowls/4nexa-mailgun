@@ -1,8 +1,8 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # Deploy — 4nexa Mailgun Platform
 # Trigger: CI pipeline completado en main con éxito
-# Pipeline: Deploy Staging → Smoke Tests → Approval Manual → Deploy Production
-# Target: aaPanel (SSH + Docker Compose)
+# Pipeline: Deploy vía aaPanel API → Smoke Tests → Rollback automático si falla
+# Target: aaPanel (servidor sin SSH público — mismo mecanismo que ERP4nexa)
 # ──────────────────────────────────────────────────────────────────────────────
 
 name: Deploy
@@ -13,80 +13,166 @@ on:
     types: [completed]
     branches: [main]
 
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false  # Nunca cancelar un deploy en progreso
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  PANEL_URL: 'https://admin.digitalhowls.com'
+  INSTALL_DIR: '/opt/4nexa-mailgun'
+  OUTPUT_PATH: '/www/server/cron/ci_mailgun_deploy_output.txt'
+
 jobs:
-  # ── 1. Deploy Staging ─────────────────────────────────────────────────────
-  deploy-staging:
-    name: Deploy → Staging
+  # ─────────────────────────────────────────────────────────────────────────
+  # 1. Deploy a Producción vía aaPanel API
+  # ─────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy → Producción
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment:
-      name: staging
-      url: https://staging.erp.4nexa.io
+      name: production
+      url: https://mail.4nexa.io
     steps:
-      - uses: actions/checkout@v4
+      - name: Deploy via aaPanel API
+        env:
+          AAPANEL_KEY:       ${{ secrets.AAPANEL_KEY }}
+          AAPANEL_CRON_ID:   ${{ secrets.AAPANEL_MAILGUN_CRON_ID }}
+          AAPANEL_CRON_HASH: ${{ secrets.AAPANEL_MAILGUN_CRON_HASH }}
+          GHCR_TOKEN:        ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER:         ${{ github.actor }}
+        run: |
+          pip install httpx --quiet
+          python3 - << 'PYEOF'
+          import hashlib, time, os, sys, base64, json
+          import httpx
 
-      - name: Deploy to staging via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.STAGING_SSH_HOST }}
-          username: ${{ secrets.STAGING_SSH_USER }}
-          key: ${{ secrets.STAGING_SSH_KEY }}
-          port: ${{ secrets.STAGING_SSH_PORT || 22 }}
-          script: |
-            set -euo pipefail
-            cd /opt/4nexa
+          PANEL_URL    = os.environ["PANEL_URL"]
+          API_KEY      = os.environ["AAPANEL_KEY"]
+          CRON_ID      = os.environ["AAPANEL_CRON_ID"]
+          CRON_HASH    = os.environ["AAPANEL_CRON_HASH"]
+          SCRIPT_PATH  = f"/www/server/cron/{CRON_HASH}"
+          DOCKER_CFG   = "/root/.docker/config.json"
+          OUTPUT_PATH  = os.environ["OUTPUT_PATH"]
+          INSTALL_DIR  = os.environ["INSTALL_DIR"]
+          GHCR_TOKEN   = os.environ["GHCR_TOKEN"]
+          GHCR_USER    = os.environ["GHCR_USER"]
 
-            # Pull latest images
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker compose -f docker-compose.staging.yml pull
+          def _auth():
+              t = int(time.time())
+              km = hashlib.md5(API_KEY.encode()).hexdigest()
+              tk = hashlib.md5(f"{t}{km}".encode()).decode()
+              return {"request_time": t, "request_token": tk}
 
-            # Run migrations (zero-downtime: run before restart)
-            docker compose -f docker-compose.staging.yml run --rm \
-              -e DATABASE_URL=${{ secrets.STAGING_DATABASE_URL }} \
-              control-plane-api sh -c "node dist/main db:migrate 2>/dev/null || npx prisma migrate deploy"
+          def api(endpoint, data=None):
+              url = f"{PANEL_URL}{endpoint}"
+              payload = {**(data or {}), **_auth()}
+              resp = httpx.Client(verify=False, timeout=60).post(url, data=payload)
+              try:
+                  return resp.json()
+              except:
+                  return {"status": True, "msg": resp.text[:200]}
 
-            # Rolling restart
-            docker compose -f docker-compose.staging.yml up -d --no-build
-            docker compose -f docker-compose.staging.yml ps
+          # Actualizar credenciales GHCR en el servidor
+          token_b64 = base64.b64encode(f"{GHCR_USER}:{GHCR_TOKEN}".encode()).decode()
+          docker_cfg = json.dumps({"auths": {"ghcr.io": {"auth": token_b64}}})
+          r_dc_orig = api("/files?action=GetFileBody", {"path": DOCKER_CFG, "encoding": "utf-8"})
+          dc_orig = r_dc_orig.get("data", "") or ""
+          api("/files?action=SaveFileBody", {"path": DOCKER_CFG, "data": docker_cfg, "encoding": "utf-8"})
+          print("Credenciales GHCR actualizadas en el servidor")
 
-            echo "✓ Staging deploy completado: $(git log --oneline -1 2>/dev/null || echo 'N/A')"
+          # Guardar cron script original
+          r_orig = api("/files?action=GetFileBody", {"path": SCRIPT_PATH, "encoding": "utf-8"})
+          orig_script = r_orig.get("data", "") or ""
 
-  # ── 2. Smoke Tests en Staging ────────────────────────────────────────────
-  smoke-staging:
-    name: Smoke Tests — Staging
+          # Script de deploy: pull → migrations → recreate → healthcheck
+          DEPLOY_SCRIPT = (
+              "#!/bin/bash\n"
+              "set -e\n"
+              "PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin\n"
+              "export PATH\n"
+              f"echo '=== CI Deploy Mailgun' $(date -u) '===' > {OUTPUT_PATH}\n"
+              f"cd {INSTALL_DIR}\n"
+              f"docker compose -f docker-compose.prod.yml pull control-plane-api admin-panel customer-panel 2>&1 | tail -10 >> {OUTPUT_PATH} || true\n"
+              f"echo 'Pull OK' >> {OUTPUT_PATH}\n"
+              f"docker compose -f docker-compose.prod.yml run --rm --no-deps control-plane-api sh -c 'npx prisma migrate deploy' >> {OUTPUT_PATH} 2>&1 || echo 'Migrations skipped' >> {OUTPUT_PATH}\n"
+              f"docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate control-plane-api >> {OUTPUT_PATH} 2>&1\n"
+              f"docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate admin-panel customer-panel >> {OUTPUT_PATH} 2>&1\n"
+              f"for i in $(seq 1 18); do\n"
+              f"  STATUS=$(docker inspect mailgun_api --format '{{{{.State.Health.Status}}}}' 2>/dev/null || echo unknown)\n"
+              f"  echo \"Health check $i/18: $STATUS\" >> {OUTPUT_PATH}\n"
+              f"  if [ \"$STATUS\" = \"healthy\" ]; then break; fi\n"
+              f"  sleep 10\n"
+              f"done\n"
+              f"FINAL=$(docker inspect mailgun_api --format '{{{{.State.Health.Status}}}}' 2>/dev/null || echo unknown)\n"
+              f"echo \"Final status: $FINAL\" >> {OUTPUT_PATH}\n"
+              f"if [ \"$FINAL\" != \"healthy\" ]; then echo 'ERROR: mailgun_api not healthy' >> {OUTPUT_PATH}; exit 1; fi\n"
+              f"docker image prune -f --filter 'until=72h' >> {OUTPUT_PATH} 2>&1 || true\n"
+              f"echo 'Deploy OK' >> {OUTPUT_PATH}\n"
+          )
+
+          api("/files?action=SaveFileBody", {"path": SCRIPT_PATH, "data": DEPLOY_SCRIPT, "encoding": "utf-8"})
+          r_run = api("/crontab?action=StartTask", {"id": CRON_ID})
+          print(f"Deploy lanzado: {r_run.get('msg')}")
+
+          # Esperar resultado (máx 15 min)
+          output = ""
+          for i in range(90):
+              time.sleep(10)
+              r_out = api("/files?action=GetFileBody", {"path": OUTPUT_PATH, "encoding": "utf-8"})
+              output = r_out.get("data", "") or ""
+              if "Deploy OK" in output or "ERROR:" in output:
+                  break
+              if i % 6 == 0:
+                  last = output.split("\n")[-2] if output else "esperando..."
+                  sys.stdout.write(f"  [{(i+1)*10}s] {last}\n")
+                  sys.stdout.flush()
+
+          lines = output.split("\n")
+          print(f"\n=== Deploy Output (últimas 30 líneas) ===\n" + "\n".join(lines[-30:]))
+
+          # Restaurar cron script y docker config originales
+          api("/files?action=SaveFileBody", {"path": SCRIPT_PATH, "data": orig_script, "encoding": "utf-8"})
+          if dc_orig:
+              api("/files?action=SaveFileBody", {"path": DOCKER_CFG, "data": dc_orig, "encoding": "utf-8"})
+
+          if "Deploy OK" not in output:
+              print("ERROR: El deploy no completó con éxito")
+              sys.exit(1)
+
+          print("¡Deploy completado con éxito!")
+          PYEOF
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 2. Smoke Tests en Producción
+  # ─────────────────────────────────────────────────────────────────────────
+  smoke:
+    name: Smoke Tests — Producción
     runs-on: ubuntu-latest
-    needs: deploy-staging
+    needs: deploy
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Wait for staging to be ready
+      - name: Smoke test — API health
         run: |
           for i in $(seq 1 12); do
             status=$(curl -s -o /dev/null -w "%{http_code}" \
-              "${{ secrets.STAGING_API_URL }}/health" 2>/dev/null || echo "000")
+              "https://api.mail.4nexa.io/api/v1/health" 2>/dev/null || echo "000")
             if [ "$status" = "200" ]; then
-              echo "✓ Staging healthy (intento $i)"
+              echo "✓ API healthy (intento $i)"
               exit 0
             fi
             echo "Intento $i: HTTP $status — esperando 10s…"
             sleep 10
           done
-          echo "✗ Staging no respondió en 2 minutos"
+          echo "✗ API no respondió en 2 minutos"
           exit 1
 
-      - name: Smoke test — API health
-        run: |
-          response=$(curl -sf "${{ secrets.STAGING_API_URL }}/health")
-          echo "$response"
-          echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('status')=='ok', f'Health check failed: {d}'"
-
-      - name: Smoke test — Auth endpoint
+      - name: Smoke test — Auth rechaza credenciales inválidas (401)
         run: |
           status=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST "${{ secrets.STAGING_API_URL }}/auth/login" \
+            -X POST "https://api.mail.4nexa.io/api/v1/auth/login" \
             -H "Content-Type: application/json" \
             -d '{"email":"smoke@invalid.test","password":"invalid"}')
-          # Esperamos 401 (credenciales inválidas), no 500
           if [ "$status" = "401" ]; then
             echo "✓ Auth endpoint responde correctamente (401)"
           else
@@ -94,10 +180,10 @@ jobs:
             exit 1
           fi
 
-      - name: Smoke test — Admin panel
+      - name: Smoke test — Admin panel accesible
         run: |
           status=$(curl -s -o /dev/null -w "%{http_code}" \
-            "${{ secrets.STAGING_ADMIN_URL }}" 2>/dev/null || echo "000")
+            "https://admin.mail.4nexa.io" 2>/dev/null || echo "000")
           if [ "$status" = "200" ] || [ "$status" = "307" ] || [ "$status" = "302" ]; then
             echo "✓ Admin panel accesible (HTTP $status)"
           else
@@ -105,111 +191,109 @@ jobs:
             exit 1
           fi
 
-  # ── 3. Aprobación manual ──────────────────────────────────────────────────
-  approve-production:
-    name: Aprobar deploy a Producción
-    runs-on: ubuntu-latest
-    needs: smoke-staging
-    environment:
-      name: production
-    steps:
-      - name: Aprobación requerida
-        run: echo "✓ Aprobado para producción"
-
-  # ── 4. Deploy Producción ──────────────────────────────────────────────────
-  deploy-production:
-    name: Deploy → Producción
-    runs-on: ubuntu-latest
-    needs: approve-production
-    environment:
-      name: production
-      url: https://erp.4nexa.io
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Deploy to production via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.PRODUCTION_SSH_HOST }}
-          username: ${{ secrets.PRODUCTION_SSH_USER }}
-          key: ${{ secrets.PRODUCTION_SSH_KEY }}
-          port: ${{ secrets.PRODUCTION_SSH_PORT || 22 }}
-          script: |
-            set -euo pipefail
-            cd /opt/4nexa
-
-            # Guardar referencia para posible rollback
-            PREV_SHA=$(docker compose -f docker-compose.prod.yml images -q control-plane-api 2>/dev/null | head -1 || echo "none")
-            echo "Imagen anterior: $PREV_SHA" > /opt/4nexa/.last_deploy_sha
-
-            # Pull latest images
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker compose -f docker-compose.prod.yml pull
-
-            # Migrar DB antes de reiniciar
-            docker compose -f docker-compose.prod.yml run --rm \
-              -e DATABASE_URL=${{ secrets.PROD_DATABASE_URL }} \
-              control-plane-api sh -c "npx prisma migrate deploy"
-
-            # Rolling restart
-            docker compose -f docker-compose.prod.yml up -d --no-build
-            docker compose -f docker-compose.prod.yml ps
-
-            # Limpiar imágenes antiguas (mantener 3 últimas)
-            docker image prune -f --filter "until=72h" || true
-
-            echo "✓ Production deploy completado: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-
-  # ── 5. Smoke Tests en Producción ─────────────────────────────────────────
-  smoke-production:
-    name: Smoke Tests — Producción
-    runs-on: ubuntu-latest
-    needs: deploy-production
-    steps:
-      - name: Verificar health producción
+      - name: Smoke test — Customer panel accesible
         run: |
-          for i in $(seq 1 12); do
-            status=$(curl -s -o /dev/null -w "%{http_code}" \
-              "https://erp.4nexa.io/health" 2>/dev/null || echo "000")
-            if [ "$status" = "200" ]; then
-              echo "✓ Producción healthy (intento $i)"
-              exit 0
-            fi
-            echo "Intento $i: HTTP $status — esperando 10s…"
-            sleep 10
-          done
-          echo "✗ Producción no respondió"
-          exit 1
+          status=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://app.mail.4nexa.io" 2>/dev/null || echo "000")
+          if [ "$status" = "200" ] || [ "$status" = "307" ] || [ "$status" = "302" ]; then
+            echo "✓ Customer panel accesible (HTTP $status)"
+          else
+            echo "✗ Customer panel devolvió HTTP $status"
+            exit 1
+          fi
 
-  # ── 6. Rollback automático si falla smoke en producción ──────────────────
-  rollback-production:
+  # ─────────────────────────────────────────────────────────────────────────
+  # 3. Rollback automático si falla el smoke test
+  # ─────────────────────────────────────────────────────────────────────────
+  rollback:
     name: Rollback — Producción
     runs-on: ubuntu-latest
-    needs: smoke-production
+    needs: smoke
     if: failure()
     steps:
-      - name: Rollback via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.PRODUCTION_SSH_HOST }}
-          username: ${{ secrets.PRODUCTION_SSH_USER }}
-          key: ${{ secrets.PRODUCTION_SSH_KEY }}
-          port: ${{ secrets.PRODUCTION_SSH_PORT || 22 }}
-          script: |
-            set -euo pipefail
-            cd /opt/4nexa
-            echo "⚠ ROLLBACK iniciado"
-
-            # Restaurar imagen anterior
-            docker compose -f docker-compose.prod.yml down --remove-orphans
-            # Restaurar con el tag anterior — requiere tener la imagen en local
-            docker tag ghcr.io/digitalhowls/4nexa-mailgun/control-plane-api:previous \
-              ghcr.io/digitalhowls/4nexa-mailgun/control-plane-api:latest 2>/dev/null || true
-            docker compose -f docker-compose.prod.yml up -d
-
-            echo "✓ Rollback completado"
-
-      - name: Notificar rollback
-        if: always()
+      - name: Rollback via aaPanel API
+        env:
+          AAPANEL_KEY:       ${{ secrets.AAPANEL_KEY }}
+          AAPANEL_CRON_ID:   ${{ secrets.AAPANEL_MAILGUN_CRON_ID }}
+          AAPANEL_CRON_HASH: ${{ secrets.AAPANEL_MAILGUN_CRON_HASH }}
         run: |
-          echo "::error::Deploy a producción falló. Rollback ejecutado automáticamente."
+          pip install httpx --quiet
+          python3 - << 'PYEOF'
+          import hashlib, time, os, sys
+          import httpx
+
+          PANEL_URL    = os.environ["PANEL_URL"]
+          API_KEY      = os.environ["AAPANEL_KEY"]
+          CRON_ID      = os.environ["AAPANEL_CRON_ID"]
+          CRON_HASH    = os.environ["AAPANEL_CRON_HASH"]
+          SCRIPT_PATH  = f"/www/server/cron/{CRON_HASH}"
+          OUTPUT_PATH  = os.environ["OUTPUT_PATH"]
+          INSTALL_DIR  = os.environ["INSTALL_DIR"]
+
+          def _auth():
+              t = int(time.time())
+              km = hashlib.md5(API_KEY.encode()).hexdigest()
+              tk = hashlib.md5(f"{t}{km}".encode()).decode()
+              return {"request_time": t, "request_token": tk}
+
+          def api(endpoint, data=None):
+              url = f"{PANEL_URL}{endpoint}"
+              payload = {**(data or {}), **_auth()}
+              resp = httpx.Client(verify=False, timeout=60).post(url, data=payload)
+              try:
+                  return resp.json()
+              except:
+                  return {"status": True, "msg": resp.text[:200]}
+
+          # Leer SHA anterior guardado en el servidor
+          sha_file = f"{INSTALL_DIR}/.last_deploy_sha"
+          r_sha = api("/files?action=GetFileBody", {"path": sha_file, "encoding": "utf-8"})
+          prev_sha = (r_sha.get("data", "") or "").strip()
+          if not prev_sha:
+              print("⚠️  No hay SHA anterior guardado. Rollback manual necesario.")
+              sys.exit(1)
+
+          print(f"🔄 Haciendo rollback a: {prev_sha}")
+
+          ROLLBACK_SCRIPT = (
+              "#!/bin/bash\n"
+              "set -e\n"
+              "PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin\n"
+              "export PATH\n"
+              f"echo '=== CI Rollback Mailgun' $(date -u) '===' > {OUTPUT_PATH}\n"
+              f"cd {INSTALL_DIR}\n"
+              f"PREV_SHA=\"{prev_sha}\"\n"
+              f"REPO=\"digitalhowls/4nexa-mailgun\"\n"
+              f"for SVC in control-plane-api admin-panel customer-panel; do\n"
+              f"  docker pull ghcr.io/${{REPO}}/${{SVC}}:${{PREV_SHA}} >> {OUTPUT_PATH} 2>&1 || true\n"
+              f"done\n"
+              f"docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate control-plane-api admin-panel customer-panel >> {OUTPUT_PATH} 2>&1\n"
+              f"echo 'Rollback OK' >> {OUTPUT_PATH}\n"
+          )
+
+          r_orig = api("/files?action=GetFileBody", {"path": SCRIPT_PATH, "encoding": "utf-8"})
+          orig_script = r_orig.get("data", "") or ""
+          api("/files?action=SaveFileBody", {"path": SCRIPT_PATH, "data": ROLLBACK_SCRIPT, "encoding": "utf-8"})
+          api("/crontab?action=StartTask", {"id": CRON_ID})
+
+          output = ""
+          for i in range(30):
+              time.sleep(10)
+              r_out = api("/files?action=GetFileBody", {"path": OUTPUT_PATH, "encoding": "utf-8"})
+              output = r_out.get("data", "") or ""
+              if "Rollback OK" in output or "ERROR:" in output:
+                  break
+
+          lines = output.split("\n")
+          print(f"\n=== Rollback Output ===\n" + "\n".join(lines[-15:]))
+          api("/files?action=SaveFileBody", {"path": SCRIPT_PATH, "data": orig_script, "encoding": "utf-8"})
+
+          if "Rollback OK" not in output:
+              print("⚠️  Rollback puede no haber completado. Revisar el servidor manualmente.")
+              sys.exit(1)
+          print("✅ Rollback completado")
+          PYEOF
+
+      - name: Notificar fallo del deploy
+        if: always()
+        run: echo "::error::El deploy a producción falló. Rollback ejecutado automáticamente."

@@ -155,6 +155,36 @@ describe('HetznerAdapter', () => {
       ).rejects.toThrow(/zoneId/);
     });
   });
+
+  describe('deleteRecord()', () => {
+    it('llama DELETE por cada registro que tiene _id', async () => {
+      // listRecords → devuelve registros con id
+      mockFetch
+        .mockResolvedValueOnce(makeOkResponse({
+          records: [{ id: 'htz-rec-1', type: 'TXT', name: 'mail.example.com', value: 'v=spf1', ttl: 3600 }],
+        }))
+        // DELETE del registro
+        .mockResolvedValueOnce(makeOkResponse({}));
+
+      await HetznerAdapter.deleteRecord(hetznerCreds, record);
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        expect.stringContaining('htz-rec-1'),
+        expect.objectContaining({ method: 'DELETE' }),
+      );
+    });
+
+    it('no hace DELETE cuando el registro no tiene _id', async () => {
+      mockFetch.mockResolvedValueOnce(makeOkResponse({
+        records: [], // lista vacía → no hay nada que borrar
+      }));
+
+      await HetznerAdapter.deleteRecord(hetznerCreds, record);
+
+      expect(mockFetch).toHaveBeenCalledTimes(1); // solo listRecords
+    });
+  });
 });
 
 // ─── ManualAdapter ────────────────────────────────────────────────────────────
@@ -353,6 +383,19 @@ describe('Route53Adapter', () => {
       const result = await Route53Adapter.listRecords(route53Creds, 'mail.example.com', 'TXT');
       expect(Array.isArray(result)).toBe(true);
     });
+
+    it('lanza error cuando HTTP no es ok', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 403,
+        statusText: 'Forbidden',
+        text: () => Promise.resolve('AccessDenied'),
+      });
+
+      await expect(
+        Route53Adapter.listRecords(route53Creds, 'mail.example.com', 'TXT'),
+      ).rejects.toThrow('403');
+    });
   });
 });
 
@@ -455,5 +498,176 @@ describe('PowerDnsAdapter', () => {
       const result = await PowerDnsAdapter.listRecords(pdnsCreds, 'x.example.com', 'TXT');
       expect(result).toEqual([]);
     });
+  });
+});
+
+// ─── Branches adicionales: ?? defaults y ternarios ───────────────────────────
+
+describe('Cloudflare branches adicionales', () => {
+  it('createRecord: usa ttl 3600 por defecto cuando record.ttl es undefined', async () => {
+    mockFetch.mockResolvedValue(makeOkResponse({ result: { id: 'r1' } }));
+    await CloudflareAdapter.createRecord(cfCreds, { type: 'TXT', name: 'x', value: 'v' });
+    const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(opts.body as string).ttl).toBe(3600);
+  });
+
+  it('deleteRecord: lanza error cuando falta zoneId', async () => {
+    await expect(
+      CloudflareAdapter.deleteRecord({ apiKey: 'tok' }, record),
+    ).rejects.toThrow(/zoneId/);
+  });
+
+  it('listRecords: retorna [] cuando httpJson retorna undefined (sin content-type JSON)', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: () => null },
+      text: () => Promise.resolve(''),
+    });
+    const result = await CloudflareAdapter.listRecords(cfCreds, 'x.example.com', 'TXT');
+    expect(result).toEqual([]);
+  });
+});
+
+describe('Hetzner branches adicionales', () => {
+  it('createRecord: usa ttl 3600 cuando record.ttl es undefined', async () => {
+    mockFetch.mockResolvedValue(makeOkResponse({}));
+    await HetznerAdapter.createRecord(hetznerCreds, { type: 'TXT', name: 'x', value: 'v' });
+    const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(opts.body as string).ttl).toBe(3600);
+  });
+
+  describe('listRecords()', () => {
+    it('retorna registros filtrados por nombre y tipo', async () => {
+      mockFetch.mockResolvedValue(makeOkResponse({
+        records: [
+          { id: 'h1', type: 'TXT', name: 'mail.example.com', value: 'v=spf1', ttl: 3600 },
+          { id: 'h2', type: 'MX', name: 'mail.example.com', value: '10 mx', ttl: 3600 },
+        ],
+      }));
+      const result = await HetznerAdapter.listRecords(hetznerCreds, 'mail.example.com', 'TXT');
+      expect(result).toHaveLength(1);
+      expect(result[0].type).toBe('TXT');
+    });
+
+    it('lanza error cuando falta zoneId', async () => {
+      await expect(
+        HetznerAdapter.listRecords({ apiKey: 'tok' }, 'x', 'TXT'),
+      ).rejects.toThrow(/zoneId/);
+    });
+
+    it('retorna [] cuando la respuesta no tiene records (sin content-type JSON)', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: { get: () => null },
+        text: () => Promise.resolve(''),
+      });
+      const result = await HetznerAdapter.listRecords(hetznerCreds, 'x', 'TXT');
+      expect(result).toEqual([]);
+    });
+  });
+});
+
+describe('OVH branches adicionales', () => {
+  it('createRecord: usa ttl 3600 cuando record.ttl es undefined', async () => {
+    mockFetch.mockResolvedValue(makeOkResponse({ id: 123 }));
+    await OvhAdapter.createRecord(ovhCreds, { type: 'TXT', name: 'x.example.com', value: 'v' });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('listRecords: retorna [] cuando ids es null (sin content-type JSON)', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: () => null },
+      text: () => Promise.resolve(''),
+    });
+    const result = await OvhAdapter.listRecords(ovhCreds, 'x.example.com', 'TXT');
+    expect(result).toEqual([]);
+  });
+});
+
+describe('Route53 branches adicionales', () => {
+  it('createRecord: usa ttl 3600 cuando record.ttl es undefined (cubre línea 326)', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: () => 'text/xml' },
+      text: () => Promise.resolve(''),
+    });
+    await Route53Adapter.createRecord(route53Creds, { type: 'TXT', name: 'x', value: 'v' });
+    const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(opts.body as string).toContain('<TTL>3600</TTL>');
+  });
+
+  it('route53SignedHeaders: usa "" como apiSecret cuando no está definido', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: () => 'text/xml' },
+      text: () => Promise.resolve(''),
+    });
+    const credsNoSecret: DnsProviderCredentials = { apiKey: 'AKIAIOSFODNN7EXAMPLE', zoneId: 'Z148QEXAMPLE8V' };
+    await Route53Adapter.createRecord(credsNoSecret, record);
+    const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect((opts.headers as Record<string, string>)['Authorization']).toMatch(/^AWS4-HMAC-SHA256/);
+  });
+});
+
+describe('PowerDNS branches adicionales', () => {
+  it('createRecord: no añade punto si el nombre ya termina en punto', async () => {
+    mockFetch.mockResolvedValue(makeOkResponse({}));
+    await PowerDnsAdapter.createRecord(pdnsCreds, { ...record, name: 'mail.example.com.' });
+    const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(opts.body as string).rrsets[0].name).toBe('mail.example.com.');
+  });
+
+  it('createRecord: usa ttl 3600 cuando record.ttl es undefined', async () => {
+    mockFetch.mockResolvedValue(makeOkResponse({}));
+    await PowerDnsAdapter.createRecord(pdnsCreds, { type: 'TXT', name: 'x', value: 'v' });
+    const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(opts.body as string).rrsets[0].ttl).toBe(3600);
+  });
+
+  it('deleteRecord: no añade punto si el nombre ya termina en punto', async () => {
+    mockFetch.mockResolvedValue(makeOkResponse({}));
+    await PowerDnsAdapter.deleteRecord(pdnsCreds, { ...record, name: 'mail.example.com.' });
+    const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(opts.body as string).rrsets[0].name).toBe('mail.example.com.');
+  });
+
+  it('listRecords: retorna [] cuando res es undefined (sin content-type JSON)', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: () => null },
+      text: () => Promise.resolve(''),
+    });
+    const result = await PowerDnsAdapter.listRecords(pdnsCreds, 'x.example.com', 'TXT');
+    expect(result).toEqual([]);
+  });
+
+  it('listRecords: normalizedName ya tiene punto cuando name termina en punto', async () => {
+    mockFetch.mockResolvedValue(makeOkResponse({
+      rrsets: [
+        {
+          name: 'mail.example.com.',
+          type: 'TXT',
+          ttl: 3600,
+          records: [{ content: 'v=spf1' }],
+        },
+      ],
+    }));
+    // name ya tiene punto → normalizedName = name (rama truthy del ternario)
+    const result = await PowerDnsAdapter.listRecords(pdnsCreds, 'mail.example.com.', 'TXT');
+    expect(result).toHaveLength(1);
+    expect(result[0].value).toBe('v=spf1');
   });
 });

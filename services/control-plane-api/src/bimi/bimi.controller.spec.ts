@@ -64,4 +64,39 @@ describe('BimiController', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
   });
+
+  it('POST /domains/:id/bimi con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server)
+        .post('/domains/d1/bimi')
+        .send({ logoUrl: 'https://example.com/logo.svg' });
+      expect(res.status).toBe(201);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
+  });
+
+  it('GET /domains/:id/bimi con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server).get('/domains/d1/bimi');
+      expect(res.status).toBe(200);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
+  });
+
+  it('GET /domains/:id/bimi/dns-record con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server).get('/domains/d1/bimi/dns-record');
+      expect(res.status).toBe(200);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
+  });
 });

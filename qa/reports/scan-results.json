@@ -1,0 +1,2403 @@
+{
+  "scannedAt": "2026-05-21T17:43:04.154Z",
+  "api": {
+    "scannedAt": "2026-05-21T17:43:04.137Z",
+    "totalControllers": 30,
+    "totalRoutes": 134,
+    "controllers": [
+      {
+        "name": "AiEngineController",
+        "basePath": "/ai",
+        "file": "ai-engine/ai-engine.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "abuse/analyze",
+            "fullPath": "/api/v1/ai/abuse/analyze",
+            "controllerFile": "ai-engine/ai-engine.controller.ts",
+            "controllerClass": "AiEngineController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "mail/classify",
+            "fullPath": "/api/v1/ai/mail/classify",
+            "controllerFile": "ai-engine/ai-engine.controller.ts",
+            "controllerClass": "AiEngineController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "support/diagnose",
+            "fullPath": "/api/v1/ai/support/diagnose",
+            "controllerFile": "ai-engine/ai-engine.controller.ts",
+            "controllerClass": "AiEngineController",
+            "handlerName": "unknown",
+            "roles": [
+              "SUPER_ADMIN",
+              "PLATFORM_ADMIN",
+              "TENANT_OWNER",
+              "TENANT_ADMIN",
+              "TENANT_MAIL_MANAGER"
+            ],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "invoice/extract",
+            "fullPath": "/api/v1/ai/invoice/extract",
+            "controllerFile": "ai-engine/ai-engine.controller.ts",
+            "controllerClass": "AiEngineController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "AliasesController",
+        "basePath": "/aliases",
+        "file": "aliases/aliases.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "",
+            "fullPath": "/api/v1/aliases",
+            "controllerFile": "aliases/aliases.controller.ts",
+            "controllerClass": "AliasesController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "",
+            "fullPath": "/api/v1/aliases",
+            "controllerFile": "aliases/aliases.controller.ts",
+            "controllerClass": "AliasesController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": ":id",
+            "fullPath": "/api/v1/aliases/:id",
+            "controllerFile": "aliases/aliases.controller.ts",
+            "controllerClass": "AliasesController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "PATCH",
+            "path": ":id",
+            "fullPath": "/api/v1/aliases/:id",
+            "controllerFile": "aliases/aliases.controller.ts",
+            "controllerClass": "AliasesController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "DELETE",
+            "path": ":id",
+            "fullPath": "/api/v1/aliases/:id",
+            "controllerFile": "aliases/aliases.controller.ts",
+            "controllerClass": "AliasesController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "AntispamController",
+        "basePath": "/antispam",
+        "file": "antispam/antispam.controller.ts",
+        "routes": [
+          {
+            "method": "GET",
+            "path": "policy/:domainId",
+            "fullPath": "/api/v1/antispam/policy/:domainId",
+            "controllerFile": "antispam/antispam.controller.ts",
+            "controllerClass": "AntispamController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "PUT",
+            "path": "policy/:domainId",
+            "fullPath": "/api/v1/antispam/policy/:domainId",
+            "controllerFile": "antispam/antispam.controller.ts",
+            "controllerClass": "AntispamController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "DELETE",
+            "path": "policy/:domainId",
+            "fullPath": "/api/v1/antispam/policy/:domainId",
+            "controllerFile": "antispam/antispam.controller.ts",
+            "controllerClass": "AntispamController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "evaluate/:domainId",
+            "fullPath": "/api/v1/antispam/evaluate/:domainId",
+            "controllerFile": "antispam/antispam.controller.ts",
+            "controllerClass": "AntispamController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "ApiKeysController",
+        "basePath": "/api-keys",
+        "file": "api-keys/api-keys.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "",
+            "fullPath": "/api/v1/api-keys",
+            "controllerFile": "api-keys/api-keys.controller.ts",
+            "controllerClass": "ApiKeysController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "",
+            "fullPath": "/api/v1/api-keys",
+            "controllerFile": "api-keys/api-keys.controller.ts",
+            "controllerClass": "ApiKeysController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "DELETE",
+            "path": ":id",
+            "fullPath": "/api/v1/api-keys/:id",
+            "controllerFile": "api-keys/api-keys.controller.ts",
+            "controllerClass": "ApiKeysController",
+            "handlerName": "unknown",
+            "roles": [
+              "SUPER_ADMIN",
+              "PLATFORM_ADMIN",
+              "TENANT_OWNER",
+              "TENANT_ADMIN"
+            ],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "PATCH",
+            "path": ":id/rotate",
+            "fullPath": "/api/v1/api-keys/:id/rotate",
+            "controllerFile": "api-keys/api-keys.controller.ts",
+            "controllerClass": "ApiKeysController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "ArchivalController",
+        "basePath": "/",
+        "file": "archival/archival.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "archival/policy",
+            "fullPath": "/api/v1/archival/policy",
+            "controllerFile": "archival/archival.controller.ts",
+            "controllerClass": "ArchivalController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "archival/policy",
+            "fullPath": "/api/v1/archival/policy",
+            "controllerFile": "archival/archival.controller.ts",
+            "controllerClass": "ArchivalController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "archival/legal-holds",
+            "fullPath": "/api/v1/archival/legal-holds",
+            "controllerFile": "archival/archival.controller.ts",
+            "controllerClass": "ArchivalController",
+            "handlerName": "unknown",
+            "roles": [
+              "SUPER_ADMIN",
+              "PLATFORM_ADMIN",
+              "TENANT_OWNER",
+              "TENANT_ADMIN"
+            ],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "archival/legal-holds",
+            "fullPath": "/api/v1/archival/legal-holds",
+            "controllerFile": "archival/archival.controller.ts",
+            "controllerClass": "ArchivalController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "DELETE",
+            "path": "archival/legal-holds/:id",
+            "fullPath": "/api/v1/archival/legal-holds/:id",
+            "controllerFile": "archival/archival.controller.ts",
+            "controllerClass": "ArchivalController",
+            "handlerName": "unknown",
+            "roles": [
+              "SUPER_ADMIN",
+              "PLATFORM_ADMIN",
+              "TENANT_OWNER"
+            ],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "archival/gdpr/export",
+            "fullPath": "/api/v1/archival/gdpr/export",
+            "controllerFile": "archival/archival.controller.ts",
+            "controllerClass": "ArchivalController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "archival/gdpr/forget",
+            "fullPath": "/api/v1/archival/gdpr/forget",
+            "controllerFile": "archival/archival.controller.ts",
+            "controllerClass": "ArchivalController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "AuditController",
+        "basePath": "/audit",
+        "file": "audit/audit.controller.ts",
+        "routes": [
+          {
+            "method": "GET",
+            "path": "",
+            "fullPath": "/api/v1/audit",
+            "controllerFile": "audit/audit.controller.ts",
+            "controllerClass": "AuditController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": ":id",
+            "fullPath": "/api/v1/audit/:id",
+            "controllerFile": "audit/audit.controller.ts",
+            "controllerClass": "AuditController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": ":id/verify",
+            "fullPath": "/api/v1/audit/:id/verify",
+            "controllerFile": "audit/audit.controller.ts",
+            "controllerClass": "AuditController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "verify-range",
+            "fullPath": "/api/v1/audit/verify-range",
+            "controllerFile": "audit/audit.controller.ts",
+            "controllerClass": "AuditController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "AuthController",
+        "basePath": "/auth",
+        "file": "auth/auth.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "login",
+            "fullPath": "/api/v1/auth/login",
+            "controllerFile": "auth/auth.controller.ts",
+            "controllerClass": "AuthController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": true,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "register",
+            "fullPath": "/api/v1/auth/register",
+            "controllerFile": "auth/auth.controller.ts",
+            "controllerClass": "AuthController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "refresh",
+            "fullPath": "/api/v1/auth/refresh",
+            "controllerFile": "auth/auth.controller.ts",
+            "controllerClass": "AuthController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": true,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "me",
+            "fullPath": "/api/v1/auth/me",
+            "controllerFile": "auth/auth.controller.ts",
+            "controllerClass": "AuthController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "change-password",
+            "fullPath": "/api/v1/auth/change-password",
+            "controllerFile": "auth/auth.controller.ts",
+            "controllerClass": "AuthController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "logout",
+            "fullPath": "/api/v1/auth/logout",
+            "controllerFile": "auth/auth.controller.ts",
+            "controllerClass": "AuthController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "totp/setup",
+            "fullPath": "/api/v1/auth/totp/setup",
+            "controllerFile": "auth/auth.controller.ts",
+            "controllerClass": "AuthController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "totp/enable",
+            "fullPath": "/api/v1/auth/totp/enable",
+            "controllerFile": "auth/auth.controller.ts",
+            "controllerClass": "AuthController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": true,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "totp/disable",
+            "fullPath": "/api/v1/auth/totp/disable",
+            "controllerFile": "auth/auth.controller.ts",
+            "controllerClass": "AuthController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "BackupController",
+        "basePath": "/backup",
+        "file": "backup/backup.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "trigger",
+            "fullPath": "/api/v1/backup/trigger",
+            "controllerFile": "backup/backup.controller.ts",
+            "controllerClass": "BackupController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": true,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "",
+            "fullPath": "/api/v1/backup",
+            "controllerFile": "backup/backup.controller.ts",
+            "controllerClass": "BackupController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": true
+          },
+          {
+            "method": "GET",
+            "path": ":id",
+            "fullPath": "/api/v1/backup/:id",
+            "controllerFile": "backup/backup.controller.ts",
+            "controllerClass": "BackupController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "BillingMeterController",
+        "basePath": "/billing",
+        "file": "billing/billing-meter.controller.ts",
+        "routes": [
+          {
+            "method": "GET",
+            "path": "meter/:tenantId",
+            "fullPath": "/api/v1/billing/meter/:tenantId",
+            "controllerFile": "billing/billing-meter.controller.ts",
+            "controllerClass": "BillingMeterController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "transition/:tenantId",
+            "fullPath": "/api/v1/billing/transition/:tenantId",
+            "controllerFile": "billing/billing-meter.controller.ts",
+            "controllerClass": "BillingMeterController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "BimiController",
+        "basePath": "/domains/:id/bimi",
+        "file": "bimi/bimi.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "",
+            "fullPath": "/api/v1/domains/:id/bimi",
+            "controllerFile": "bimi/bimi.controller.ts",
+            "controllerClass": "BimiController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": true,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "",
+            "fullPath": "/api/v1/domains/:id/bimi",
+            "controllerFile": "bimi/bimi.controller.ts",
+            "controllerClass": "BimiController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "dns-record",
+            "fullPath": "/api/v1/domains/:id/bimi/dns-record",
+            "controllerFile": "bimi/bimi.controller.ts",
+            "controllerClass": "BimiController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "BrainController",
+        "basePath": "/brain",
+        "file": "brain/brain.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "cells",
+            "fullPath": "/api/v1/brain/cells",
+            "controllerFile": "brain/brain.controller.ts",
+            "controllerClass": "BrainController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "cells",
+            "fullPath": "/api/v1/brain/cells",
+            "controllerFile": "brain/brain.controller.ts",
+            "controllerClass": "BrainController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": true
+          },
+          {
+            "method": "GET",
+            "path": "cells/:scope/:key",
+            "fullPath": "/api/v1/brain/cells/:scope/:key",
+            "controllerFile": "brain/brain.controller.ts",
+            "controllerClass": "BrainController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "DELETE",
+            "path": "cells",
+            "fullPath": "/api/v1/brain/cells",
+            "controllerFile": "brain/brain.controller.ts",
+            "controllerClass": "BrainController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": true,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "DELETE",
+            "path": "cells/tenant/:tenantId",
+            "fullPath": "/api/v1/brain/cells/tenant/:tenantId",
+            "controllerFile": "brain/brain.controller.ts",
+            "controllerClass": "BrainController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "CredentialRotationController",
+        "basePath": "/credentials",
+        "file": "credential-rotation/credential-rotation.controller.ts",
+        "routes": [
+          {
+            "method": "GET",
+            "path": "dkim/:domainId",
+            "fullPath": "/api/v1/credentials/dkim/:domainId",
+            "controllerFile": "credential-rotation/credential-rotation.controller.ts",
+            "controllerClass": "CredentialRotationController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "rotate-dkim/:domainId",
+            "fullPath": "/api/v1/credentials/rotate-dkim/:domainId",
+            "controllerFile": "credential-rotation/credential-rotation.controller.ts",
+            "controllerClass": "CredentialRotationController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "DeliverabilityController",
+        "basePath": "/deliverability",
+        "file": "deliverability/deliverability.controller.ts",
+        "routes": [
+          {
+            "method": "GET",
+            "path": "domain/:id",
+            "fullPath": "/api/v1/deliverability/domain/:id",
+            "controllerFile": "deliverability/deliverability.controller.ts",
+            "controllerClass": "DeliverabilityController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "check",
+            "fullPath": "/api/v1/deliverability/check",
+            "controllerFile": "deliverability/deliverability.controller.ts",
+            "controllerClass": "DeliverabilityController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "DisasterRecoveryController",
+        "basePath": "/dr",
+        "file": "disaster-recovery/disaster-recovery.controller.ts",
+        "routes": [
+          {
+            "method": "GET",
+            "path": "status",
+            "fullPath": "/api/v1/dr/status",
+            "controllerFile": "disaster-recovery/disaster-recovery.controller.ts",
+            "controllerClass": "DisasterRecoveryController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "plans/:scenario",
+            "fullPath": "/api/v1/dr/plans/:scenario",
+            "controllerFile": "disaster-recovery/disaster-recovery.controller.ts",
+            "controllerClass": "DisasterRecoveryController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "simulate",
+            "fullPath": "/api/v1/dr/simulate",
+            "controllerFile": "disaster-recovery/disaster-recovery.controller.ts",
+            "controllerClass": "DisasterRecoveryController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "DnsOrchestrationController",
+        "basePath": "/",
+        "file": "dns-orchestration/dns-orchestration.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "dns-providers",
+            "fullPath": "/api/v1/dns-providers",
+            "controllerFile": "dns-orchestration/dns-orchestration.controller.ts",
+            "controllerClass": "DnsOrchestrationController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": true,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "dns-providers",
+            "fullPath": "/api/v1/dns-providers",
+            "controllerFile": "dns-orchestration/dns-orchestration.controller.ts",
+            "controllerClass": "DnsOrchestrationController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "DELETE",
+            "path": "dns-providers/:id",
+            "fullPath": "/api/v1/dns-providers/:id",
+            "controllerFile": "dns-orchestration/dns-orchestration.controller.ts",
+            "controllerClass": "DnsOrchestrationController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "domains/:id/dns/provision",
+            "fullPath": "/api/v1/domains/:id/dns/provision",
+            "controllerFile": "dns-orchestration/dns-orchestration.controller.ts",
+            "controllerClass": "DnsOrchestrationController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "domains/:id/dns/verify",
+            "fullPath": "/api/v1/domains/:id/dns/verify",
+            "controllerFile": "dns-orchestration/dns-orchestration.controller.ts",
+            "controllerClass": "DnsOrchestrationController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "domains/:id/dns/status",
+            "fullPath": "/api/v1/domains/:id/dns/status",
+            "controllerFile": "dns-orchestration/dns-orchestration.controller.ts",
+            "controllerClass": "DnsOrchestrationController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "DomainsController",
+        "basePath": "/domains",
+        "file": "domains/domains.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "",
+            "fullPath": "/api/v1/domains",
+            "controllerFile": "domains/domains.controller.ts",
+            "controllerClass": "DomainsController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "",
+            "fullPath": "/api/v1/domains",
+            "controllerFile": "domains/domains.controller.ts",
+            "controllerClass": "DomainsController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": ":id",
+            "fullPath": "/api/v1/domains/:id",
+            "controllerFile": "domains/domains.controller.ts",
+            "controllerClass": "DomainsController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "PATCH",
+            "path": ":id",
+            "fullPath": "/api/v1/domains/:id",
+            "controllerFile": "domains/domains.controller.ts",
+            "controllerClass": "DomainsController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": ":id/verify-dns",
+            "fullPath": "/api/v1/domains/:id/verify-dns",
+            "controllerFile": "domains/domains.controller.ts",
+            "controllerClass": "DomainsController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": ":id/dns-instructions",
+            "fullPath": "/api/v1/domains/:id/dns-instructions",
+            "controllerFile": "domains/domains.controller.ts",
+            "controllerClass": "DomainsController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "DELETE",
+            "path": ":id",
+            "fullPath": "/api/v1/domains/:id",
+            "controllerFile": "domains/domains.controller.ts",
+            "controllerClass": "DomainsController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "GroupwareController",
+        "basePath": "/",
+        "file": "groupware/groupware.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "mailboxes/:id/calendar",
+            "fullPath": "/api/v1/mailboxes/:id/calendar",
+            "controllerFile": "groupware/groupware.controller.ts",
+            "controllerClass": "GroupwareController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "mailboxes/:id/calendars",
+            "fullPath": "/api/v1/mailboxes/:id/calendars",
+            "controllerFile": "groupware/groupware.controller.ts",
+            "controllerClass": "GroupwareController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "domains/:id/free-busy",
+            "fullPath": "/api/v1/domains/:id/free-busy",
+            "controllerFile": "groupware/groupware.controller.ts",
+            "controllerClass": "GroupwareController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "HealthController",
+        "basePath": "/health",
+        "file": "health/health.controller.ts",
+        "routes": [
+          {
+            "method": "GET",
+            "path": "",
+            "fullPath": "/api/v1/health",
+            "controllerFile": "health/health.controller.ts",
+            "controllerClass": "HealthController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "MailboxesController",
+        "basePath": "/mailboxes",
+        "file": "mailboxes/mailboxes.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "",
+            "fullPath": "/api/v1/mailboxes",
+            "controllerFile": "mailboxes/mailboxes.controller.ts",
+            "controllerClass": "MailboxesController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "",
+            "fullPath": "/api/v1/mailboxes",
+            "controllerFile": "mailboxes/mailboxes.controller.ts",
+            "controllerClass": "MailboxesController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": ":id",
+            "fullPath": "/api/v1/mailboxes/:id",
+            "controllerFile": "mailboxes/mailboxes.controller.ts",
+            "controllerClass": "MailboxesController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "PATCH",
+            "path": ":id",
+            "fullPath": "/api/v1/mailboxes/:id",
+            "controllerFile": "mailboxes/mailboxes.controller.ts",
+            "controllerClass": "MailboxesController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": ":id/reset-password",
+            "fullPath": "/api/v1/mailboxes/:id/reset-password",
+            "controllerFile": "mailboxes/mailboxes.controller.ts",
+            "controllerClass": "MailboxesController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": ":id/quota",
+            "fullPath": "/api/v1/mailboxes/:id/quota",
+            "controllerFile": "mailboxes/mailboxes.controller.ts",
+            "controllerClass": "MailboxesController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "DELETE",
+            "path": ":id",
+            "fullPath": "/api/v1/mailboxes/:id",
+            "controllerFile": "mailboxes/mailboxes.controller.ts",
+            "controllerClass": "MailboxesController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "MetricsController",
+        "basePath": "/metrics",
+        "file": "metrics/metrics.controller.ts",
+        "routes": [
+          {
+            "method": "GET",
+            "path": "",
+            "fullPath": "/api/v1/metrics",
+            "controllerFile": "metrics/metrics.controller.ts",
+            "controllerClass": "MetricsController",
+            "handlerName": "Header",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "MigrationController",
+        "basePath": "/migration",
+        "file": "migration/migration.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "jobs",
+            "fullPath": "/api/v1/migration/jobs",
+            "controllerFile": "migration/migration.controller.ts",
+            "controllerClass": "MigrationController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": true,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "jobs",
+            "fullPath": "/api/v1/migration/jobs",
+            "controllerFile": "migration/migration.controller.ts",
+            "controllerClass": "MigrationController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": true
+          },
+          {
+            "method": "GET",
+            "path": "jobs/:id",
+            "fullPath": "/api/v1/migration/jobs/:id",
+            "controllerFile": "migration/migration.controller.ts",
+            "controllerClass": "MigrationController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "PATCH",
+            "path": "jobs/:id/pause",
+            "fullPath": "/api/v1/migration/jobs/:id/pause",
+            "controllerFile": "migration/migration.controller.ts",
+            "controllerClass": "MigrationController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "PATCH",
+            "path": "jobs/:id/resume",
+            "fullPath": "/api/v1/migration/jobs/:id/resume",
+            "controllerFile": "migration/migration.controller.ts",
+            "controllerClass": "MigrationController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "DELETE",
+            "path": "jobs/:id",
+            "fullPath": "/api/v1/migration/jobs/:id",
+            "controllerFile": "migration/migration.controller.ts",
+            "controllerClass": "MigrationController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "NodeAssignmentController",
+        "basePath": "/node-assignment",
+        "file": "node-assignment/node-assignment.controller.ts",
+        "routes": [
+          {
+            "method": "GET",
+            "path": "best-node",
+            "fullPath": "/api/v1/node-assignment/best-node",
+            "controllerFile": "node-assignment/node-assignment.controller.ts",
+            "controllerClass": "NodeAssignmentController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": true
+          },
+          {
+            "method": "POST",
+            "path": "tenant/:id",
+            "fullPath": "/api/v1/node-assignment/tenant/:id",
+            "controllerFile": "node-assignment/node-assignment.controller.ts",
+            "controllerClass": "NodeAssignmentController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "domain/:id",
+            "fullPath": "/api/v1/node-assignment/domain/:id",
+            "controllerFile": "node-assignment/node-assignment.controller.ts",
+            "controllerClass": "NodeAssignmentController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "drain/:id",
+            "fullPath": "/api/v1/node-assignment/drain/:id",
+            "controllerFile": "node-assignment/node-assignment.controller.ts",
+            "controllerClass": "NodeAssignmentController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "quarantine/:id",
+            "fullPath": "/api/v1/node-assignment/quarantine/:id",
+            "controllerFile": "node-assignment/node-assignment.controller.ts",
+            "controllerClass": "NodeAssignmentController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "reactivate/:id",
+            "fullPath": "/api/v1/node-assignment/reactivate/:id",
+            "controllerFile": "node-assignment/node-assignment.controller.ts",
+            "controllerClass": "NodeAssignmentController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "warmup/:id",
+            "fullPath": "/api/v1/node-assignment/warmup/:id",
+            "controllerFile": "node-assignment/node-assignment.controller.ts",
+            "controllerClass": "NodeAssignmentController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "NodesController",
+        "basePath": "/nodes",
+        "file": "nodes/nodes.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "",
+            "fullPath": "/api/v1/nodes",
+            "controllerFile": "nodes/nodes.controller.ts",
+            "controllerClass": "NodesController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": true,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "",
+            "fullPath": "/api/v1/nodes",
+            "controllerFile": "nodes/nodes.controller.ts",
+            "controllerClass": "NodesController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": true
+          },
+          {
+            "method": "GET",
+            "path": ":id",
+            "fullPath": "/api/v1/nodes/:id",
+            "controllerFile": "nodes/nodes.controller.ts",
+            "controllerClass": "NodesController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "PATCH",
+            "path": ":id",
+            "fullPath": "/api/v1/nodes/:id",
+            "controllerFile": "nodes/nodes.controller.ts",
+            "controllerClass": "NodesController",
+            "handlerName": "unknown",
+            "roles": [
+              "SUPER_ADMIN",
+              "PLATFORM_ADMIN",
+              "SUPPORT_AGENT"
+            ],
+            "hasBody": true,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": ":id/maintenance",
+            "fullPath": "/api/v1/nodes/:id/maintenance",
+            "controllerFile": "nodes/nodes.controller.ts",
+            "controllerClass": "NodesController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": ":id/agent-ping",
+            "fullPath": "/api/v1/nodes/:id/agent-ping",
+            "controllerFile": "nodes/nodes.controller.ts",
+            "controllerClass": "NodesController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": ":id/push-config",
+            "fullPath": "/api/v1/nodes/:id/push-config",
+            "controllerFile": "nodes/nodes.controller.ts",
+            "controllerClass": "NodesController",
+            "handlerName": "HttpCode",
+            "roles": [
+              "SUPER_ADMIN",
+              "PLATFORM_ADMIN"
+            ],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": ":id/validate-config",
+            "fullPath": "/api/v1/nodes/:id/validate-config",
+            "controllerFile": "nodes/nodes.controller.ts",
+            "controllerClass": "NodesController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": ":id/enroll",
+            "fullPath": "/api/v1/nodes/:id/enroll",
+            "controllerFile": "nodes/nodes.controller.ts",
+            "controllerClass": "NodesController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": ":id/rotate-cert",
+            "fullPath": "/api/v1/nodes/:id/rotate-cert",
+            "controllerFile": "nodes/nodes.controller.ts",
+            "controllerClass": "NodesController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": ":id/cert",
+            "fullPath": "/api/v1/nodes/:id/cert",
+            "controllerFile": "nodes/nodes.controller.ts",
+            "controllerClass": "NodesController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "NotificationsController",
+        "basePath": "/notification-channels",
+        "file": "notifications/notifications.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "",
+            "fullPath": "/api/v1/notification-channels",
+            "controllerFile": "notifications/notifications.controller.ts",
+            "controllerClass": "NotificationsController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": true,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "",
+            "fullPath": "/api/v1/notification-channels",
+            "controllerFile": "notifications/notifications.controller.ts",
+            "controllerClass": "NotificationsController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "DELETE",
+            "path": ":id",
+            "fullPath": "/api/v1/notification-channels/:id",
+            "controllerFile": "notifications/notifications.controller.ts",
+            "controllerClass": "NotificationsController",
+            "handlerName": "unknown",
+            "roles": [
+              "SUPER_ADMIN",
+              "PLATFORM_ADMIN",
+              "TENANT_OWNER",
+              "TENANT_ADMIN"
+            ],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "OrizonController",
+        "basePath": "/orizon",
+        "file": "orizon/orizon.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "sync",
+            "fullPath": "/api/v1/orizon/sync",
+            "controllerFile": "orizon/orizon.controller.ts",
+            "controllerClass": "OrizonController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "webhook",
+            "fullPath": "/api/v1/orizon/webhook",
+            "controllerFile": "orizon/orizon.controller.ts",
+            "controllerClass": "OrizonController",
+            "handlerName": "handleWebhook",
+            "roles": [],
+            "hasBody": true,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "PlansController",
+        "basePath": "/plans",
+        "file": "plans/plans.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "",
+            "fullPath": "/api/v1/plans",
+            "controllerFile": "plans/plans.controller.ts",
+            "controllerClass": "PlansController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": true,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "",
+            "fullPath": "/api/v1/plans",
+            "controllerFile": "plans/plans.controller.ts",
+            "controllerClass": "PlansController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": ":id",
+            "fullPath": "/api/v1/plans/:id",
+            "controllerFile": "plans/plans.controller.ts",
+            "controllerClass": "PlansController",
+            "handlerName": "unknown",
+            "roles": [
+              "SUPER_ADMIN",
+              "PLATFORM_ADMIN",
+              "SUPPORT_AGENT"
+            ],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "PATCH",
+            "path": ":id",
+            "fullPath": "/api/v1/plans/:id",
+            "controllerFile": "plans/plans.controller.ts",
+            "controllerClass": "PlansController",
+            "handlerName": "unknown",
+            "roles": [
+              "SUPER_ADMIN",
+              "PLATFORM_ADMIN",
+              "SUPPORT_AGENT"
+            ],
+            "hasBody": true,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "DELETE",
+            "path": ":id",
+            "fullPath": "/api/v1/plans/:id",
+            "controllerFile": "plans/plans.controller.ts",
+            "controllerClass": "PlansController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "QueueEngineController",
+        "basePath": "/queue-engine",
+        "file": "queue-engine/queue-engine.controller.ts",
+        "routes": [
+          {
+            "method": "GET",
+            "path": "stats",
+            "fullPath": "/api/v1/queue-engine/stats",
+            "controllerFile": "queue-engine/queue-engine.controller.ts",
+            "controllerClass": "QueueEngineController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "jobs",
+            "fullPath": "/api/v1/queue-engine/jobs",
+            "controllerFile": "queue-engine/queue-engine.controller.ts",
+            "controllerClass": "QueueEngineController",
+            "handlerName": "unknown",
+            "roles": [
+              "SUPER_ADMIN",
+              "PLATFORM_ADMIN"
+            ],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": "jobs/:id/retry",
+            "fullPath": "/api/v1/queue-engine/jobs/:id/retry",
+            "controllerFile": "queue-engine/queue-engine.controller.ts",
+            "controllerClass": "QueueEngineController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "DELETE",
+            "path": "purge",
+            "fullPath": "/api/v1/queue-engine/purge",
+            "controllerFile": "queue-engine/queue-engine.controller.ts",
+            "controllerClass": "QueueEngineController",
+            "handlerName": "HttpCode",
+            "roles": [
+              "SUPER_ADMIN",
+              "PLATFORM_ADMIN"
+            ],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "dlq",
+            "fullPath": "/api/v1/queue-engine/dlq",
+            "controllerFile": "queue-engine/queue-engine.controller.ts",
+            "controllerClass": "QueueEngineController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": true
+          },
+          {
+            "method": "POST",
+            "path": "dlq/:id/restore",
+            "fullPath": "/api/v1/queue-engine/dlq/:id/restore",
+            "controllerFile": "queue-engine/queue-engine.controller.ts",
+            "controllerClass": "QueueEngineController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "nodes/:nodeId/queue-stats",
+            "fullPath": "/api/v1/queue-engine/nodes/:nodeId/queue-stats",
+            "controllerFile": "queue-engine/queue-engine.controller.ts",
+            "controllerClass": "QueueEngineController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "TenantsController",
+        "basePath": "/tenants",
+        "file": "tenants/tenants.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "",
+            "fullPath": "/api/v1/tenants",
+            "controllerFile": "tenants/tenants.controller.ts",
+            "controllerClass": "TenantsController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": true,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "",
+            "fullPath": "/api/v1/tenants",
+            "controllerFile": "tenants/tenants.controller.ts",
+            "controllerClass": "TenantsController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": true
+          },
+          {
+            "method": "GET",
+            "path": ":id",
+            "fullPath": "/api/v1/tenants/:id",
+            "controllerFile": "tenants/tenants.controller.ts",
+            "controllerClass": "TenantsController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "PATCH",
+            "path": ":id",
+            "fullPath": "/api/v1/tenants/:id",
+            "controllerFile": "tenants/tenants.controller.ts",
+            "controllerClass": "TenantsController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": true,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": ":id/suspend",
+            "fullPath": "/api/v1/tenants/:id/suspend",
+            "controllerFile": "tenants/tenants.controller.ts",
+            "controllerClass": "TenantsController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": ":id/reactivate",
+            "fullPath": "/api/v1/tenants/:id/reactivate",
+            "controllerFile": "tenants/tenants.controller.ts",
+            "controllerClass": "TenantsController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          },
+          {
+            "method": "POST",
+            "path": ":id/assign-node",
+            "fullPath": "/api/v1/tenants/:id/assign-node",
+            "controllerFile": "tenants/tenants.controller.ts",
+            "controllerClass": "TenantsController",
+            "handlerName": "HttpCode",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": true,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "WebmailController",
+        "basePath": "/auth/webmail-token",
+        "file": "webmail/webmail.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "",
+            "fullPath": "/api/v1/auth/webmail-token",
+            "controllerFile": "webmail/webmail.controller.ts",
+            "controllerClass": "WebmailController",
+            "handlerName": "generateToken",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      },
+      {
+        "name": "WhitelabelController",
+        "basePath": "/whitelabel",
+        "file": "whitelabel/whitelabel.controller.ts",
+        "routes": [
+          {
+            "method": "POST",
+            "path": "",
+            "fullPath": "/api/v1/whitelabel",
+            "controllerFile": "whitelabel/whitelabel.controller.ts",
+            "controllerClass": "WhitelabelController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": true,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "GET",
+            "path": "",
+            "fullPath": "/api/v1/whitelabel",
+            "controllerFile": "whitelabel/whitelabel.controller.ts",
+            "controllerClass": "WhitelabelController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          },
+          {
+            "method": "DELETE",
+            "path": "",
+            "fullPath": "/api/v1/whitelabel",
+            "controllerFile": "whitelabel/whitelabel.controller.ts",
+            "controllerClass": "WhitelabelController",
+            "handlerName": "unknown",
+            "roles": [],
+            "hasBody": false,
+            "hasParam": false,
+            "hasQuery": false
+          }
+        ]
+      }
+    ],
+    "routesByMethod": {
+      "POST": 60,
+      "GET": 50,
+      "PATCH": 9,
+      "DELETE": 14,
+      "PUT": 1
+    }
+  },
+  "ui": {
+    "scannedAt": "2026-05-21T17:43:04.153Z",
+    "totalPages": 34,
+    "totalComponents": 4,
+    "pages": [
+      {
+        "app": "admin-panel",
+        "routePath": "/login",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(auth)/login/page.tsx",
+        "isAuthProtected": true,
+        "hasForm": true,
+        "hasLoginForm": true,
+        "inputCount": 3,
+        "buttonCount": 1,
+        "usesApiClient": false,
+        "usesAuthStore": true,
+        "hasMutation": false,
+        "hasQuery": false
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/ai",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/ai/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 6,
+        "buttonCount": 4,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": false
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/aliases",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/aliases/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 1,
+        "buttonCount": 8,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/antispam",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/antispam/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 7,
+        "buttonCount": 10,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/archival",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/archival/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 6,
+        "buttonCount": 9,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/audit",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/audit/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 7,
+        "buttonCount": 9,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/billing",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/billing/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 2,
+        "buttonCount": 4,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/bimi",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/bimi/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 2,
+        "buttonCount": 2,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/credentials",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/credentials/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 2,
+        "buttonCount": 7,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/dashboard",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/dashboard/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": false,
+        "hasLoginForm": false,
+        "inputCount": 0,
+        "buttonCount": 0,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": false,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/deliverability",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/deliverability/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 2,
+        "buttonCount": 4,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/disaster-recovery",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/disaster-recovery/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 3,
+        "buttonCount": 6,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/dns",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/dns/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": true,
+        "inputCount": 3,
+        "buttonCount": 6,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/domains",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/domains/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 1,
+        "buttonCount": 11,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/mailboxes",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/mailboxes/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": true,
+        "inputCount": 5,
+        "buttonCount": 10,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/nodes",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/nodes/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 5,
+        "buttonCount": 8,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/notifications",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/notifications/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": true,
+        "inputCount": 2,
+        "buttonCount": 4,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/orizon",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/orizon/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 2,
+        "buttonCount": 2,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": false
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/plans",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/plans/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 9,
+        "buttonCount": 9,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/tenants",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/tenants/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 3,
+        "buttonCount": 8,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/whitelabel",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/(panel)/whitelabel/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 6,
+        "buttonCount": 4,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "admin-panel",
+        "routePath": "/page.tsx",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/app/page.tsx",
+        "isAuthProtected": true,
+        "hasForm": false,
+        "hasLoginForm": false,
+        "inputCount": 0,
+        "buttonCount": 0,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": false,
+        "hasQuery": false
+      },
+      {
+        "app": "customer-panel",
+        "routePath": "/login",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/customer-panel/src/app/(auth)/login/page.tsx",
+        "isAuthProtected": true,
+        "hasForm": true,
+        "hasLoginForm": true,
+        "inputCount": 3,
+        "buttonCount": 1,
+        "usesApiClient": false,
+        "usesAuthStore": true,
+        "hasMutation": false,
+        "hasQuery": false
+      },
+      {
+        "app": "customer-panel",
+        "routePath": "/aliases",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/customer-panel/src/app/(panel)/aliases/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 1,
+        "buttonCount": 8,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "customer-panel",
+        "routePath": "/antispam",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/customer-panel/src/app/(panel)/antispam/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 6,
+        "buttonCount": 5,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "customer-panel",
+        "routePath": "/archival",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/customer-panel/src/app/(panel)/archival/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 5,
+        "buttonCount": 9,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "customer-panel",
+        "routePath": "/billing",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/customer-panel/src/app/(panel)/billing/page.tsx",
+        "isAuthProtected": true,
+        "hasForm": false,
+        "hasLoginForm": false,
+        "inputCount": 0,
+        "buttonCount": 0,
+        "usesApiClient": false,
+        "usesAuthStore": true,
+        "hasMutation": false,
+        "hasQuery": true
+      },
+      {
+        "app": "customer-panel",
+        "routePath": "/dashboard",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/customer-panel/src/app/(panel)/dashboard/page.tsx",
+        "isAuthProtected": true,
+        "hasForm": false,
+        "hasLoginForm": false,
+        "inputCount": 0,
+        "buttonCount": 0,
+        "usesApiClient": false,
+        "usesAuthStore": true,
+        "hasMutation": false,
+        "hasQuery": true
+      },
+      {
+        "app": "customer-panel",
+        "routePath": "/deliverability",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/customer-panel/src/app/(panel)/deliverability/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": false,
+        "hasLoginForm": false,
+        "inputCount": 0,
+        "buttonCount": 1,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": false,
+        "hasQuery": true
+      },
+      {
+        "app": "customer-panel",
+        "routePath": "/domains",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/customer-panel/src/app/(panel)/domains/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": false,
+        "hasLoginForm": false,
+        "inputCount": 0,
+        "buttonCount": 4,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "customer-panel",
+        "routePath": "/mailboxes",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/customer-panel/src/app/(panel)/mailboxes/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": true,
+        "inputCount": 2,
+        "buttonCount": 5,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "customer-panel",
+        "routePath": "/notifications",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/customer-panel/src/app/(panel)/notifications/page.tsx",
+        "isAuthProtected": false,
+        "hasForm": true,
+        "hasLoginForm": false,
+        "inputCount": 4,
+        "buttonCount": 5,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": true,
+        "hasQuery": true
+      },
+      {
+        "app": "customer-panel",
+        "routePath": "/profile",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/customer-panel/src/app/(panel)/profile/page.tsx",
+        "isAuthProtected": true,
+        "hasForm": true,
+        "hasLoginForm": true,
+        "inputCount": 3,
+        "buttonCount": 1,
+        "usesApiClient": false,
+        "usesAuthStore": true,
+        "hasMutation": true,
+        "hasQuery": false
+      },
+      {
+        "app": "customer-panel",
+        "routePath": "/page.tsx",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/customer-panel/src/app/page.tsx",
+        "isAuthProtected": true,
+        "hasForm": false,
+        "hasLoginForm": false,
+        "inputCount": 0,
+        "buttonCount": 0,
+        "usesApiClient": false,
+        "usesAuthStore": false,
+        "hasMutation": false,
+        "hasQuery": false
+      }
+    ],
+    "components": [
+      {
+        "app": "admin-panel",
+        "name": "header",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/components/layout/header.tsx",
+        "hasForm": false,
+        "inputCount": 0,
+        "buttonCount": 1
+      },
+      {
+        "app": "admin-panel",
+        "name": "sidebar",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/admin-panel/src/components/layout/sidebar.tsx",
+        "hasForm": false,
+        "inputCount": 0,
+        "buttonCount": 0
+      },
+      {
+        "app": "customer-panel",
+        "name": "header",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/customer-panel/src/components/layout/header.tsx",
+        "hasForm": false,
+        "inputCount": 0,
+        "buttonCount": 1
+      },
+      {
+        "app": "customer-panel",
+        "name": "sidebar",
+        "filePath": "/Users/d.raneraccgs.eu/Downloads/Proyectos/Mailgun/4nexa-mailgun/apps/customer-panel/src/components/layout/sidebar.tsx",
+        "hasForm": false,
+        "inputCount": 0,
+        "buttonCount": 0
+      }
+    ],
+    "summary": {
+      "pagesWithForms": 27,
+      "pagesWithAuth": 7,
+      "pagesWithMutations": 26
+    }
+  }
+}

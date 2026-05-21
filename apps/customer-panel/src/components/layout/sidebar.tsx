@@ -8,6 +8,11 @@ import {
   Inbox,
   ArrowLeftRight,
   User,
+  CreditCard,
+  Shield,
+  Bell,
+  Archive,
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -16,6 +21,11 @@ const navItems = [
   { href: '/domains', label: 'Dominios', icon: Globe },
   { href: '/mailboxes', label: 'Buzones', icon: Inbox },
   { href: '/aliases', label: 'Alias', icon: ArrowLeftRight },
+  { href: '/antispam', label: 'Antispam', icon: Shield },
+  { href: '/deliverability', label: 'Entregabilidad', icon: TrendingUp },
+  { href: '/notifications', label: 'Notificaciones', icon: Bell },
+  { href: '/archival', label: 'Archivado', icon: Archive },
+  { href: '/billing', label: 'Facturación', icon: CreditCard },
   { href: '/profile', label: 'Mi cuenta', icon: User },
 ];
 

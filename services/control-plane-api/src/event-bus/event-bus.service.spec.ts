@@ -184,6 +184,23 @@ describe('EventBusService', () => {
       );
     });
 
+    it('usa "dlq:unknown" cuando job.id es undefined (cubre línea 110)', async () => {
+      const fakeJob = {
+        name: 'tenant.created',
+        data: makeTenantEvent(),
+        attemptsMade: 5,
+        // sin id
+      } as never;
+
+      await service.moveJobToDlq(fakeJob);
+
+      expect(mockAdd).toHaveBeenCalledWith(
+        'tenant.created',
+        expect.objectContaining({ type: 'tenant.created' }),
+        expect.objectContaining({ jobId: 'dlq:unknown' }),
+      );
+    });
+
     it('no propaga errores si la DLQ falla', async () => {
       mockAdd.mockRejectedValueOnce(new Error('DLQ Redis down'));
       const fakeJob = {
@@ -194,6 +211,48 @@ describe('EventBusService', () => {
       } as never;
 
       await expect(service.moveJobToDlq(fakeJob)).resolves.toBeUndefined();
+    });
+
+    it('no propaga error no-Error cuando la DLQ falla (rama String(err))', async () => {
+      mockAdd.mockRejectedValueOnce('DLQ string error');
+      const fakeJob = { id: 'job-101', name: 'tenant.created', data: makeTenantEvent(), attemptsMade: 5 } as never;
+      await expect(service.moveJobToDlq(fakeJob)).resolves.toBeUndefined();
+    });
+  });
+
+  // ─── Branches ?? 50 y err instanceof Error false ─────────────────────────
+
+  describe('publish() — branches adicionales', () => {
+    it('usa prioridad 50 por defecto cuando el tipo no está en EVENT_PRIORITIES', async () => {
+      const unknownEvent = { type: 'custom.unknown.event', occurredAt: new Date().toISOString() } as never;
+      await service.publish(unknownEvent);
+      expect(mockAdd).toHaveBeenCalledWith(
+        'custom.unknown.event',
+        unknownEvent,
+        expect.objectContaining({ priority: 50 }),
+      );
+    });
+
+    it('no propaga error no-Error cuando queue.add falla con string', async () => {
+      mockAdd.mockRejectedValueOnce('Redis connection refused');
+      await expect(service.publish(makeTenantEvent())).resolves.toBeUndefined();
+    });
+  });
+
+  describe('publishBulk() — branches adicionales', () => {
+    it('usa prioridad 50 para tipos no mapeados en publishBulk', async () => {
+      const unknownEvent = { type: 'custom.bulk.event', occurredAt: new Date().toISOString() } as never;
+      await service.publishBulk([unknownEvent]);
+      expect(mockAddBulk).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ opts: expect.objectContaining({ priority: 50 }) }),
+        ]),
+      );
+    });
+
+    it('no propaga error no-Error cuando addBulk falla con string', async () => {
+      mockAddBulk.mockRejectedValueOnce('Redis bulk error');
+      await expect(service.publishBulk([makeTenantEvent()])).resolves.toBeUndefined();
     });
   });
 });

@@ -6,11 +6,13 @@ import { DnsRecordStatus } from '@4nexa/types';
 
 const mockResolveMx = jest.fn();
 const mockResolveTxt = jest.fn();
+const mockResolve4 = jest.fn();
 const mockReverse = jest.fn();
 
 jest.mock('dns/promises', () => ({
   resolveMx: (...args: unknown[]) => mockResolveMx(...args),
   resolveTxt: (...args: unknown[]) => mockResolveTxt(...args),
+  resolve4: (...args: unknown[]) => mockResolve4(...args),
   reverse: (...args: unknown[]) => mockReverse(...args),
 }));
 
@@ -167,6 +169,67 @@ describe('DnsCheckerService', () => {
 
       expect(result.allPassed).toBe(false);
       expect(result.checkedAt).toBeInstanceOf(Date);
+    });
+  });
+
+  describe('checkDomain() — PTR válido e inválido', () => {
+    it('retorna PTR MISSING cuando addresses está vacío (línea 165)', async () => {
+      mockResolveMx.mockResolvedValue([{ priority: 10, exchange: 'mail.example.com' }]);
+      mockResolveTxt
+        .mockResolvedValueOnce([['v=spf1 -all']])
+        .mockResolvedValueOnce([['v=DKIM1; k=rsa; p=K']])
+        .mockResolvedValueOnce([['v=DMARC1; p=none']]);
+      mockResolve4.mockResolvedValue([]); // sin addresses → MISSING
+      mockReverse.mockResolvedValue([]);
+
+      const result = await service.checkDomain('dom-11', 'example.com', 'sel', 'K');
+      expect(result.ptr.status).toBe(DnsRecordStatus.MISSING);
+    });
+
+    it('retorna PTR VALID cuando reverse apunta al dominio', async () => {
+      mockResolveMx.mockResolvedValue([{ priority: 10, exchange: 'mail.example.com' }]);
+      mockResolveTxt
+        .mockResolvedValueOnce([['v=spf1 -all']])
+        .mockResolvedValueOnce([['v=DKIM1; k=rsa; p=K']])
+        .mockResolvedValueOnce([['v=DMARC1; p=none']]);
+      mockResolve4.mockResolvedValue(['1.2.3.4']);
+      mockReverse.mockResolvedValue(['mail.example.com']); // incluye el dominio → VALID
+
+      const result = await service.checkDomain('dom-12', 'example.com', 'sel', 'K');
+      expect(result.ptr.status).toBe(DnsRecordStatus.VALID);
+    });
+
+    it('retorna PTR INVALID cuando reverse no apunta al dominio', async () => {
+      mockResolveMx.mockResolvedValue([{ priority: 10, exchange: 'mail.example.com' }]);
+      mockResolveTxt
+        .mockResolvedValueOnce([['v=spf1 -all']])
+        .mockResolvedValueOnce([['v=DKIM1; k=rsa; p=K']])
+        .mockResolvedValueOnce([['v=DMARC1; p=none']]);
+      mockResolve4.mockResolvedValue(['1.2.3.4']);
+      mockReverse.mockResolvedValue(['unrelated.host.com']); // no coincide → INVALID
+
+      const result = await service.checkDomain('dom-13', 'example.com', 'sel', 'K');
+      expect(result.ptr.status).toBe(DnsRecordStatus.INVALID);
+    });
+  });
+
+  describe('checkDomain() — ramas fallback líneas 33-37 (checks privados lanzan)', () => {
+    it('usa fallback para todos los checks cuando los métodos privados lanzan', async () => {
+      // Forzar que los 5 métodos privados lancen para que allSettled los marque 'rejected'
+      jest.spyOn(service as any, 'checkMx').mockRejectedValue(new Error('mx forced'));
+      jest.spyOn(service as any, 'checkSpf').mockRejectedValue(new Error('spf forced'));
+      jest.spyOn(service as any, 'checkDkim').mockRejectedValue(new Error('dkim forced'));
+      jest.spyOn(service as any, 'checkDmarc').mockRejectedValue(new Error('dmarc forced'));
+      jest.spyOn(service as any, 'checkPtr').mockRejectedValue(new Error('ptr forced'));
+
+      const result = await service.checkDomain('dom-ff', 'forced.invalid', 'sel', null);
+
+      expect(result.mx.status).toBe(DnsRecordStatus.INVALID);
+      expect(result.spf.status).toBe(DnsRecordStatus.INVALID);
+      expect(result.dkim.status).toBe(DnsRecordStatus.INVALID);
+      expect(result.dmarc.status).toBe(DnsRecordStatus.INVALID);
+      expect(result.ptr.status).toBe(DnsRecordStatus.INVALID);
+      expect(result.allPassed).toBe(false);
     });
   });
 });

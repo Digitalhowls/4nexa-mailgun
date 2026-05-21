@@ -45,6 +45,18 @@ describe('NotificationsController', () => {
   afterAll(() => app.close());
   beforeEach(() => jest.clearAllMocks());
 
+  it('POST /notification-channels con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const savedTenantId = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      await request(app.getHttpServer() as Server)
+        .post('/notification-channels')
+        .send({ name: 'Alert', type: 'EMAIL', target: 'a@b.com' });
+    } finally {
+      (adminUser as any).tenantId = savedTenantId;
+    }
+  });
+
   it('POST /notification-channels → 201', async () => {
     const res = await request(app.getHttpServer() as Server)
       .post('/notification-channels')
@@ -63,5 +75,27 @@ describe('NotificationsController', () => {
     const res = await request(app.getHttpServer() as Server).delete('/notification-channels/ch1');
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+
+  it('GET /notification-channels con tenantId null → rama ?? ""', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server).get('/notification-channels');
+      expect(res.status).toBe(200);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
+  });
+
+  it('DELETE /notification-channels/:id con tenantId null → rama ?? ""', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server).delete('/notification-channels/ch1');
+      expect(res.status).toBe(200);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
   });
 });

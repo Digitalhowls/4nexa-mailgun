@@ -77,4 +77,46 @@ describe('AiEngineController', () => {
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
   });
+
+  it('POST /ai/abuse/analyze con tenantId null → usa string vacío (rama ?? "")', async () => {
+    // Cubrir la rama tenantId === null (el ?? '' del controller)
+    const userSinTenant = { ...adminUser, tenantId: null };
+    const module2 = await Test.createTestingModule({
+      controllers: [AiEngineController],
+      providers: [{ provide: AiEngineService, useValue: mockService }],
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: (ctx: import('@nestjs/common').ExecutionContext) => {
+        ctx.switchToHttp().getRequest().user = userSinTenant; return true;
+      }})
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
+
+    const app2 = module2.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
+    await app2.init();
+    await app2.getHttpAdapter().getInstance().ready();
+
+    const res = await request(app2.getHttpServer() as Server)
+      .post('/ai/abuse/analyze')
+      .send({ subject: 'test', body: 'msg', fromEmail: 'a@b.com', ip: '1.2.3.4' });
+    expect(res.status).toBe(201);
+    expect(mockService.analyzeAbuse).toHaveBeenCalledWith('', expect.anything());
+
+    await app2.close();
+  });
+
+  it('POST /ai/support/diagnose con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const savedTenantId = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server)
+        .post('/ai/support/diagnose')
+        .send({ question: 'Why is DKIM failing?' });
+      expect(res.status).toBe(201);
+      expect(mockService.diagnoseSupport).toHaveBeenCalledWith('', expect.anything(), expect.anything());
+    } finally {
+      (adminUser as any).tenantId = savedTenantId;
+    }
+  });
 });

@@ -45,6 +45,18 @@ describe('WhitelabelController', () => {
   afterAll(() => app.close());
   beforeEach(() => jest.clearAllMocks());
 
+  it('POST /whitelabel con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const savedTenantId = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      await request(app.getHttpServer() as Server)
+        .post('/whitelabel')
+        .send({ brandName: 'Test', primaryColor: '#FF0000' });
+    } finally {
+      (adminUser as any).tenantId = savedTenantId;
+    }
+  });
+
   it('POST /whitelabel → 201', async () => {
     const res = await request(app.getHttpServer() as Server)
       .post('/whitelabel')
@@ -63,5 +75,27 @@ describe('WhitelabelController', () => {
     const res = await request(app.getHttpServer() as Server).delete('/whitelabel');
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+
+  it('GET /whitelabel con tenantId null → rama ?? ""', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server).get('/whitelabel');
+      expect(res.status).toBe(200);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
+  });
+
+  it('DELETE /whitelabel con tenantId null → rama ?? ""', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server).delete('/whitelabel');
+      expect(res.status).toBe(200);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
   });
 });

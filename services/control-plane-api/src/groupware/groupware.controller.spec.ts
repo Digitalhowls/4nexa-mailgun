@@ -64,4 +64,37 @@ describe('GroupwareController', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
   });
+
+  it('POST /mailboxes/:id/calendar con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const savedTenantId = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      await request(app.getHttpServer() as Server)
+        .post('/mailboxes/mb1/calendar');
+    } finally {
+      (adminUser as any).tenantId = savedTenantId;
+    }
+  });
+
+  it('GET /mailboxes/:id/calendars con tenantId null → rama ?? ""', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server).get('/mailboxes/mb1/calendars');
+      expect(res.status).toBe(200);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
+  });
+
+  it('GET /domains/:id/free-busy con tenantId null → rama ?? ""', async () => {
+    const saved = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server).get('/domains/d1/free-busy');
+      expect(res.status).toBe(200);
+    } finally {
+      (adminUser as any).tenantId = saved;
+    }
+  });
 });

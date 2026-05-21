@@ -233,5 +233,27 @@ describe('NotificationsService', () => {
       );
       expect(result.type).toBe('SMS');
     });
+
+    it('no lanza cuando el tipo es desconocido (required[type] ?? [] → no missing)', async () => {
+      const channel = {
+        id: 'chX', tenantId: 't1', type: 'UNKNOWN', name: 'x', config: {}, events: [], isActive: true,
+      };
+      mockPrisma.notificationChannel.create.mockResolvedValue(channel);
+      await expect(
+        service.createChannel('t1', { type: 'UNKNOWN' as any, config: {}, name: 'x' }, 'u1'),
+      ).resolves.toBeDefined();
+    });
+  });
+
+  describe('sendNotification — catch con non-Error (rama String(err))', () => {
+    it('captura err no-Error y usa String(err)', async () => {
+      mockPrisma.notificationChannel.findMany.mockResolvedValue([
+        { id: 'ch-str', type: 'EMAIL', config: { to: 'a@b.com' }, events: ['*'] },
+      ]);
+      const dispatchSpy = jest.spyOn(service as any, 'dispatch').mockRejectedValue('string-error');
+      const result = await service.sendNotification('t1', { type: 'EMAIL' as any, subject: 'x', body: 'y' });
+      expect(result.errors[0]).toContain('string-error');
+      dispatchSpy.mockRestore();
+    });
   });
 });

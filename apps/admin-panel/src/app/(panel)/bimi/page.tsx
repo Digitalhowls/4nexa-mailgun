@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { bimiApi, type SetBimiConfigPayload } from '@/lib/api/bimi.api';
+import { bimiApi, type BimiConfigPayload } from '@/lib/api/bimi.api';
 import { domainsApi } from '@/lib/api/domains.api';
 import { toast } from '@/components/ui/use-toast';
 import { getErrorMessage } from '@/lib/utils';
@@ -65,7 +65,7 @@ export default function BimiPage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (payload: SetBimiConfigPayload) => bimiApi.configure(selectedDomainId, payload),
+    mutationFn: (payload: BimiConfigPayload) => bimiApi.configure(selectedDomainId, payload),
     onSuccess: () => {
       refetch();
       refetchDns();
@@ -174,9 +174,7 @@ export default function BimiPage() {
                   </CardDescription>
                 </div>
                 {dnsRecord && (
-                  <Badge variant={dnsRecord.valid ? 'success' : 'secondary'}>
-                    {dnsRecord.valid ? 'Activo' : 'Pendiente'}
-                  </Badge>
+                  <Badge variant="success">Generado</Badge>
                 )}
               </div>
             </CardHeader>
@@ -200,7 +198,6 @@ export default function BimiPage() {
                   </div>
                   <div className="text-xs text-muted-foreground space-y-1">
                     <p><strong>Nombre:</strong> <code>{dnsRecord.name}</code></p>
-                    <p><strong>TTL:</strong> {dnsRecord.ttl ?? 3600}s</p>
                   </div>
                 </div>
               ) : (

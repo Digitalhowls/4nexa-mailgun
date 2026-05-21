@@ -94,4 +94,26 @@ describe('WebmailService', () => {
       await expect(service.configureDomainInWebmail('d1', 't1')).resolves.toBeUndefined();
     });
   });
+
+  describe('constructor sin SNAPPYMAIL_BASE_URL (rama ?? fallback)', () => {
+    it('usa URL por defecto cuando SNAPPYMAIL_BASE_URL no está definida', async () => {
+      const saved = process.env.SNAPPYMAIL_BASE_URL;
+      delete process.env.SNAPPYMAIL_BASE_URL;
+      try {
+        const { Test: TestNest } = await import('@nestjs/testing');
+        const mod = await TestNest.createTestingModule({
+          providers: [
+            WebmailService,
+            { provide: PrismaService, useValue: mockPrisma },
+            { provide: AuditService, useValue: mockAudit },
+            { provide: JwtService, useValue: mockJwt },
+          ],
+        }).compile();
+        const svc = mod.get(WebmailService);
+        expect(svc).toBeDefined();
+      } finally {
+        if (saved !== undefined) process.env.SNAPPYMAIL_BASE_URL = saved;
+      }
+    });
+  });
 });

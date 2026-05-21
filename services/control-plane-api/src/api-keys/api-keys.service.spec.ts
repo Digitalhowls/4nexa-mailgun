@@ -60,6 +60,21 @@ describe('ApiKeysService', () => {
         expect.objectContaining({ action: 'api_key.created' }),
       );
     });
+
+    it('crea la key con expiresAt cuando se proporciona (cubre línea 87)', async () => {
+      const future = new Date(Date.now() + 86400000).toISOString();
+      const record = {
+        id: 'key-2', name: 'Expiring Key', keyPrefix: 'abc12345',
+        scopes: [], rateLimit: 1000, lastUsedAt: null,
+        expiresAt: new Date(future), isActive: true, createdAt: new Date(), createdBy: 'user-1',
+      };
+      mockPrisma.apiKey.create.mockResolvedValue(record);
+
+      await service.create('tenant-1', { name: 'Expiring Key', scopes: [], expiresAt: future } as any, 'user-1');
+
+      const createCall = mockPrisma.apiKey.create.mock.calls[0][0].data;
+      expect(createCall.expiresAt).toBeInstanceOf(Date);
+    });
   });
 
   describe('list', () => {

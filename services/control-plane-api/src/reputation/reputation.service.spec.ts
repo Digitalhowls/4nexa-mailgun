@@ -186,6 +186,20 @@ describe('ReputationService', () => {
     });
   });
 
+  describe('getTenantScore() — tenant no encontrado', () => {
+    it('lanza NotFoundException si el tenant no existe', async () => {
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue(null);
+      await expect(service.getTenantScore('nope')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getDomainScore() — dominio no encontrado', () => {
+    it('lanza NotFoundException si el dominio no existe', async () => {
+      (prisma.domain.findUnique as jest.Mock).mockResolvedValue(null);
+      await expect(service.getDomainScore('nope')).rejects.toThrow(NotFoundException);
+    });
+  });
+
   // ─── Constantes ───────────────────────────────────────────────────────────
 
   it('REPUTATION_THRESHOLDS tiene los valores del paper §7.4', () => {

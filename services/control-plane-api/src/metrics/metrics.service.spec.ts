@@ -115,5 +115,59 @@ describe('MetricsService', () => {
       const output = await service.collect();
       expect(output).toContain('4nexa_mailgun_node_tenants_max');
     });
+
+    it('devuelve ceros en colas cuando Redis no está disponible (getQueueCounts error)', async () => {
+      const errorEventBus = {
+        getQueue: jest.fn().mockReturnValue({ getJobCounts: jest.fn().mockRejectedValue(new Error('Redis ECONNREFUSED')) }),
+        getDlqQueue: jest.fn().mockReturnValue({ getJobCounts: jest.fn().mockRejectedValue(new Error('Redis ECONNREFUSED')) }),
+      } as unknown as import('../event-bus/event-bus.service').EventBusService;
+
+      const svc = new MetricsService(makePrisma(), errorEventBus);
+      const output = await svc.collect();
+
+      // No debe lanzar; debe emitir las métricas de cola con valores 0
+      expect(output).toContain('4nexa_mailgun_queue_jobs_total');
+      expect(output).toContain('system-events');
+    });
+
+    it('usa ?? 0 cuando getJobCounts devuelve objeto vacío (branches 214-219)', async () => {
+      // getJobCounts devuelve {} → todos los ?? 0 se activan
+      const emptyCountsEventBus = {
+        getQueue: jest.fn().mockReturnValue({ getJobCounts: jest.fn().mockResolvedValue({}) }),
+        getDlqQueue: jest.fn().mockReturnValue({ getJobCounts: jest.fn().mockResolvedValue({}) }),
+      } as unknown as import('../event-bus/event-bus.service').EventBusService;
+
+      const svc = new MetricsService(makePrisma(), emptyCountsEventBus);
+      const output = await svc.collect();
+      expect(output).toContain('4nexa_mailgun_queue_jobs_total');
+    });
+
+    it('serializa métricas sin etiquetas cuando samples.labels está vacío', async () => {
+      // Esto cubre la rama `labelStr ? suffix : ''` cuando no hay labels
+      const prismaNoLabels = {
+        ...makePrisma(),
+        tenant: {
+          groupBy: jest.fn().mockResolvedValue([]), // sin muestras para tenants
+          aggregate: jest.fn().mockResolvedValue({ _avg: { trustScore: null } }), // null → usa 100 por defecto
+        },
+        domain: {
+          groupBy: jest.fn().mockResolvedValue([]),
+          aggregate: jest.fn().mockResolvedValue({ _avg: { healthScore: null } }),
+        },
+        node: {
+          groupBy: jest.fn().mockResolvedValue([]),
+          aggregate: jest.fn().mockResolvedValue({ _avg: { reputationScore: null } }),
+          findMany: jest.fn().mockResolvedValue([]),
+        },
+        backupJob: { groupBy: jest.fn().mockResolvedValue([]) },
+      } as unknown as import('../prisma/prisma.service').PrismaService;
+
+      const svc = new MetricsService(prismaNoLabels, makeEventBus());
+      const output = await svc.collect();
+
+      // Usar el valor fallback 100 para las medias nulas
+      expect(output).toContain('entity_type="node"');
+      expect(output).toContain('100');
+    });
   });
 });

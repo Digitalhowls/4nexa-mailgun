@@ -71,6 +71,23 @@ describe('GroupwareService', () => {
         }),
       );
     });
+
+    it('usa fallbacks ?? false/PRIVATE cuando options está vacío', async () => {
+      const config = {
+        id: 'c1', mailboxId: 'm1', enabled: true,
+        easEnabled: false, shareType: 'PRIVATE' as const, createdAt: new Date(),
+      };
+      mockPrisma.mailbox.findFirst.mockResolvedValue({ id: 'm1' });
+      mockPrisma.calendarConfig.upsert.mockResolvedValue(config);
+
+      const result = await service.enableCalendar('m1', 't1', {}, 'u1');
+      expect(result.enabled).toBe(true);
+      expect(mockPrisma.calendarConfig.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ easEnabled: false, shareType: 'PRIVATE' }),
+        }),
+      );
+    });
   });
 
   describe('listCalendars', () => {

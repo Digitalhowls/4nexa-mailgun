@@ -160,6 +160,20 @@ describe('TenantsService', () => {
         svc.create({ name: 'NT', billingEmail: 'x@x.com', planId: PLAN_ID, nodeId: NODE_ID }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('crea tenant sin planId ni nodeId (cubre ?? null en líneas 58-59)', async () => {
+      const prisma = makePrisma();
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValueOnce(null); // slug libre
+      const svc = new TenantsService(prisma, makeEventBus());
+
+      await svc.create({ name: 'Sin Plan', billingEmail: 'x@x.com' });
+
+      expect(prisma.tenant.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ planId: null, nodeId: null }),
+        }),
+      );
+    });
   });
 
   describe('findAll()', () => {
@@ -174,6 +188,17 @@ describe('TenantsService', () => {
       const svc = new TenantsService(prisma, makeEventBus());
       await svc.findAll({ page: 1, pageSize: 10, status: TenantStatus.ACTIVE, search: 'empresa' });
       expect(prisma.tenant.findMany).toHaveBeenCalled();
+    });
+
+    it('aplica filtros planId y nodeId (cubre ramas truthy en líneas 90-91)', async () => {
+      const prisma = makePrisma();
+      const svc = new TenantsService(prisma, makeEventBus());
+      await svc.findAll({ page: 1, pageSize: 10, planId: PLAN_ID, nodeId: NODE_ID });
+      expect(prisma.tenant.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ planId: PLAN_ID, nodeId: NODE_ID }),
+        }),
+      );
     });
   });
 
@@ -209,6 +234,14 @@ describe('TenantsService', () => {
         BadRequestException,
       );
     });
+
+    it('lanza BadRequestException si el plan existe pero no está activo (línea 135)', async () => {
+      const prisma = makePrisma();
+      (prisma.plan.findUnique as jest.Mock).mockResolvedValue({ ...FAKE_PLAN, active: false });
+      const svc = new TenantsService(prisma, makeEventBus());
+
+      await expect(svc.update(TENANT_ID, { planId: PLAN_ID })).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('suspend()', () => {
@@ -233,6 +266,19 @@ describe('TenantsService', () => {
       const svc = new TenantsService(prisma, makeEventBus());
 
       await expect(svc.suspend(TENANT_ID, {})).rejects.toThrow(BadRequestException);
+    });
+
+    it('suspende sin reason (cubre input.reason ?? null en líneas 156-164)', async () => {
+      const prisma = makePrisma();
+      (prisma.tenant.update as jest.Mock).mockResolvedValue({
+        ...FAKE_TENANT,
+        status: 'SUSPENDED',
+        suspendReason: null,
+      });
+      const svc = new TenantsService(prisma, makeEventBus());
+
+      const result = await svc.suspend(TENANT_ID, {});
+      expect(result.suspendReason).toBeNull();
     });
   });
 
@@ -283,6 +329,22 @@ describe('TenantsService', () => {
       const svc = new TenantsService(prisma, makeEventBus());
 
       await expect(svc.assignNode(TENANT_ID, NODE_ID)).rejects.toThrow(BadRequestException);
+    });
+
+    it('asigna nodo diferente al tenant (cubre ramas de decrement/increment en líneas 204-212)', async () => {
+      const OTHER_NODE_ID = 'dddd0000-0000-0000-0000-000000000001';
+      const prisma = makePrisma();
+      // Tenant tiene OLD_NODE_ID, vamos a asignar NEW_NODE_ID
+      (prisma.tenant.findUnique as jest.Mock).mockResolvedValue({
+        ...FAKE_TENANT,
+        nodeId: OTHER_NODE_ID,
+      });
+      (prisma.node.findUnique as jest.Mock).mockResolvedValue(FAKE_NODE);
+      (prisma.$transaction as jest.Mock).mockResolvedValue([{ ...FAKE_TENANT, nodeId: NODE_ID }]);
+      const svc = new TenantsService(prisma, makeEventBus());
+
+      const result = await svc.assignNode(TENANT_ID, NODE_ID);
+      expect(result).toMatchObject({ nodeId: NODE_ID });
     });
   });
 });

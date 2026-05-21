@@ -41,6 +41,8 @@ export class AntispamController {
     UserRole.SUPER_ADMIN,
     UserRole.PLATFORM_ADMIN,
     UserRole.READ_ONLY_AUDITOR,
+    UserRole.TENANT_OWNER,
+    UserRole.TENANT_ADMIN,
   )
   @ApiOperation({ summary: 'Obtener política antispam de un dominio' })
   async getPolicy(@Param('domainId', ParseUUIDPipe) domainId: string) {
@@ -50,7 +52,7 @@ export class AntispamController {
   // ─── PUT /antispam/policy/:domainId ───────────────────────────────────────
 
   @Put('policy/:domainId')
-  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.PLATFORM_ADMIN, UserRole.TENANT_OWNER, UserRole.TENANT_ADMIN)
   @ApiOperation({ summary: 'Crear o actualizar política antispam de un dominio (§27)' })
   async upsertPolicy(
     @Param('domainId', ParseUUIDPipe) domainId: string,

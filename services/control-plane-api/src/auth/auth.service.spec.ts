@@ -126,6 +126,30 @@ describe('AuthService', () => {
         authService.login({ email: 'x@x.com', password: 'wrong-password' }),
       ).rejects.toThrow(UnauthorizedException);
     });
+
+    it('establece lockedUntil al alcanzar 5 intentos fallidos (cubre línea 70)', async () => {
+      const { authService, prisma } = makeDeps();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: 'u1',
+        email: 'x@x.com',
+        status: 'ACTIVE',
+        lockedUntil: null,
+        failedLoginAttempts: 4,
+        totpEnabled: false,
+        passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$aaaa$bbbb',
+      });
+      (prisma.user.update as jest.Mock).mockResolvedValue({});
+
+      await expect(
+        authService.login({ email: 'x@x.com', password: 'wrong-password' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ lockedUntil: expect.any(Date) }),
+        }),
+      );
+    });
   });
 
   // ─── register() / createUser() ────────────────────────────────────────────
@@ -207,6 +231,30 @@ describe('AuthService', () => {
 
       await expect(
         authService.login({ email: 'user@test.com', password: 'pass' }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('lanza UnauthorizedException si el código TOTP es incorrecto (líneas 83-85)', async () => {
+      const argon2Mock = jest.requireMock<{ verify: jest.Mock }>('argon2');
+      argon2Mock.verify.mockResolvedValueOnce(true);
+
+      const { authService, prisma } = makeDeps();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: 'u1',
+        email: 'user@test.com',
+        status: 'ACTIVE',
+        lockedUntil: null,
+        failedLoginAttempts: 0,
+        totpEnabled: true,
+        totpSecret: 'BASE32SECRET',
+        passwordHash: '$argon2id$hash',
+        role: 'TENANT_OWNER',
+        tenantId: null,
+      });
+      jest.spyOn(authService, 'verifyTotp').mockReturnValue(false);
+
+      await expect(
+        authService.login({ email: 'user@test.com', password: 'pass', totpCode: '000000' }),
       ).rejects.toThrow(UnauthorizedException);
     });
   });
@@ -348,6 +396,23 @@ describe('AuthService', () => {
       const result = await authService.refreshTokens('valid-token');
       expect(result).toHaveProperty('accessToken');
     });
+
+    it('lanza UnauthorizedException si el token está expirado (línea 166)', async () => {
+      const payload = {
+        sub: 'u1', email: 'u@x.com', role: 'TENANT_OWNER', tenantId: null,
+        jti: 'jti-expired', iat: 1, exp: 9999999999,
+      };
+      const { authService, prisma, jwtService } = makeDeps();
+      (jwtService as any).verify = jest.fn().mockReturnValue(payload);
+      (prisma.refreshToken.findUnique as jest.Mock).mockResolvedValue({
+        id: 'rt-exp',
+        revokedAt: null,
+        expiresAt: new Date(Date.now() - 1000), // ya expirado
+        user: { id: 'u1', email: 'u@x.com', role: 'TENANT_OWNER', tenantId: null },
+      });
+
+      await expect(authService.refreshTokens('valid-token')).rejects.toThrow(UnauthorizedException);
+    });
   });
 
   // ─── TOTP ─────────────────────────────────────────────────────────────────
@@ -371,6 +436,17 @@ describe('AuthService', () => {
 
       await expect(authService.enableTotp('u1', secret, '000000')).rejects.toThrow(
         UnauthorizedException,
+      );
+    });
+
+    it('habilita TOTP cuando el código es válido (línea 260)', async () => {
+      const { authService, prisma } = makeDeps();
+      (prisma.user.update as jest.Mock).mockResolvedValue({});
+      jest.spyOn(authService, 'verifyTotp').mockReturnValue(true);
+
+      await authService.enableTotp('u1', 'SOMESECRET', '123456');
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { totpSecret: 'SOMESECRET', totpEnabled: true } }),
       );
     });
   });

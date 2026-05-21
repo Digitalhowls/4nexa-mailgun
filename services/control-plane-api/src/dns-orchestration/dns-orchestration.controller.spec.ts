@@ -85,4 +85,66 @@ describe('DnsOrchestrationController', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
   });
+
+  it('POST /dns-providers con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const savedTenantId = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      await request(app.getHttpServer() as Server)
+        .post('/dns-providers')
+        .send({ name: 'Test Provider', type: 'CLOUDFLARE', apiToken: 'tok' });
+    } finally {
+      (adminUser as any).tenantId = savedTenantId;
+    }
+  });
+
+  it('GET /dns-providers con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const savedTenantId = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      await request(app.getHttpServer() as Server).get('/dns-providers');
+    } finally {
+      (adminUser as any).tenantId = savedTenantId;
+    }
+  });
+
+  it('DELETE /dns-providers/:id con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const savedTenantId = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      await request(app.getHttpServer() as Server).delete('/dns-providers/dns1');
+    } finally {
+      (adminUser as any).tenantId = savedTenantId;
+    }
+  });
+
+  it('POST /domains/:id/dns/provision con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const savedTenantId = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      await request(app.getHttpServer() as Server).post('/domains/d1/dns/provision');
+    } finally {
+      (adminUser as any).tenantId = savedTenantId;
+    }
+  });
+
+  it('POST /domains/:id/dns/verify con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const savedTenantId = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      await request(app.getHttpServer() as Server).post('/domains/d1/dns/verify');
+    } finally {
+      (adminUser as any).tenantId = savedTenantId;
+    }
+  });
+
+  it('GET /domains/:id/dns/status con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const savedTenantId = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      await request(app.getHttpServer() as Server).get('/domains/d1/dns/status');
+    } finally {
+      (adminUser as any).tenantId = savedTenantId;
+    }
+  });
 });

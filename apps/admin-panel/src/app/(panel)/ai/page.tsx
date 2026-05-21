@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-import { aiApi } from '@/lib/api/ai.api';
+import { aiApi, type AbuseAnalysisResult, type MailClassificationResult, type SupportDiagnosisResult, type InvoiceExtractionResult } from '@/lib/api/ai.api';
 import { toast } from '@/components/ui/use-toast';
 import { getErrorMessage } from '@/lib/utils';
 
@@ -65,10 +65,10 @@ function ResultBlock({ data }: { data: unknown }) {
 /* ─── Página ──────────────────────────────────────────────────────────── */
 
 export default function AiPage() {
-  const [abuseResult, setAbuseResult] = useState<unknown>(null);
-  const [classifyResult, setClassifyResult] = useState<unknown>(null);
-  const [diagnoseResult, setDiagnoseResult] = useState<unknown>(null);
-  const [invoiceResult, setInvoiceResult] = useState<unknown>(null);
+  const [abuseResult, setAbuseResult] = useState<AbuseAnalysisResult | null>(null);
+  const [classifyResult, setClassifyResult] = useState<MailClassificationResult | null>(null);
+  const [diagnoseResult, setDiagnoseResult] = useState<SupportDiagnosisResult | null>(null);
+  const [invoiceResult, setInvoiceResult] = useState<InvoiceExtractionResult | null>(null);
 
   /* Abuse */
   const abuseForm = useForm<AbuseForm>({ resolver: zodResolver(abuseSchema) });
@@ -90,7 +90,7 @@ export default function AiPage() {
   const diagnoseForm = useForm<DiagnoseForm>({ resolver: zodResolver(diagnoseSchema) });
   const diagnoseMutation = useMutation({
     mutationFn: ({ description, context }: DiagnoseForm) =>
-      aiApi.diagnoseSupportIssue(description, context),
+      aiApi.diagnoseSupportIssue(description, context ? (JSON.parse(context) as Record<string, unknown>) : {}),
     onSuccess: (data) => setDiagnoseResult(data),
     onError: (err) => toast({ title: 'Error', description: getErrorMessage(err), variant: 'destructive' }),
   });

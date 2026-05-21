@@ -114,6 +114,15 @@ describe('getMeterSnapshot', () => {
     expect(snap.planLimits.maxMailboxes).toBeNull();
     expect(snap.planLimits.maxDomains).toBeNull();
   });
+
+  it('usa BigInt(0) cuando _sum.usedBytes es null (cubre línea 118)', async () => {
+    prisma.tenant.findUnique.mockResolvedValue(makeTenant());
+    prisma.mailbox.aggregate.mockResolvedValue({ _sum: { usedBytes: null } });
+
+    const snap = await service.getMeterSnapshot('tenant-1');
+
+    expect(snap.usedStorageBytes).toBe(0);
+  });
 });
 
 // ─── transitionBillingStatus ──────────────────────────────────────────────────
@@ -163,6 +172,14 @@ describe('transitionBillingStatus', () => {
         newStatus: 'SUSPENDED',
         reason: 'test',
       }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('usa [] cuando previousStatus no está en VALID_TRANSITIONS (cubre línea 178)', async () => {
+    prisma.tenant.findUnique.mockResolvedValue(makeTenant({ billingStatus: 'UNKNOWN_STATUS' as any }));
+
+    await expect(
+      service.transitionBillingStatus('tenant-1', { newStatus: 'ACTIVE' as any, reason: 'test' }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 

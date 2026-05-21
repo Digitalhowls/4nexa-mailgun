@@ -166,6 +166,13 @@ describe('AiEngineService — feature ON (Ollama mock)', () => {
 
       expect(result.verdict).toBe('CLEAN');
     });
+
+    it('parseAbuseResponse: confidence no es número y reason es null → usa fallbacks', async () => {
+      mockFetch.mockResolvedValue(makeOllamaResponse({ verdict: 'SPAM', confidence: 'not-a-number', reason: null }));
+      const result = await service.analyzeAbuse('t1', { subject: 's', body: 'b', fromEmail: 'a@b.com', ip: '1.1.1.1' });
+      expect(result.confidence).toBe(0.5);
+      expect(result.reason).toBe('');
+    });
   });
 
   describe('classifyMail()', () => {
@@ -194,6 +201,13 @@ describe('AiEngineService — feature ON (Ollama mock)', () => {
       });
 
       expect(result.category).toBe('INBOX');
+    });
+
+    it('usa fallbacks ?? cuando la respuesta JSON omite category y confidence', async () => {
+      mockFetch.mockResolvedValue(makeOllamaResponse({}));
+      const result = await service.classifyMail({ subject: 'Hi', body: 'body', fromEmail: 'a@b.com' });
+      expect(result.category).toBe('INBOX');
+      expect(result.confidence).toBe(0.8);
     });
   });
 
@@ -226,6 +240,21 @@ describe('AiEngineService — feature ON (Ollama mock)', () => {
       expect(result.answer).toBe('Check your DNS records');
       expect(result.confidence).toBe(0.5);
     });
+
+    it('usa fallbacks ?? cuando la respuesta JSON omite confidence y sources', async () => {
+      mockFetch.mockResolvedValue(makeOllamaResponse({ answer: 'Solo la respuesta' }));
+      const result = await service.diagnoseSupport('t1', 'pregunta', 'u1');
+      expect(result.answer).toBe('Solo la respuesta');
+      expect(result.confidence).toBe(0.5);
+      expect(result.sources).toEqual([]);
+    });
+
+    it('usa "Sin respuesta" cuando la respuesta JSON omite answer (cubre línea 129)', async () => {
+      mockFetch.mockResolvedValue(makeOllamaResponse({ confidence: 0.9, sources: ['doc1'] }));
+      const result = await service.diagnoseSupport('t1', 'pregunta', 'u1');
+      expect(result.answer).toBe('Sin respuesta');
+      expect(result.confidence).toBe(0.9);
+    });
   });
 
   describe('extractInvoiceData()', () => {
@@ -253,5 +282,106 @@ describe('AiEngineService — feature ON (Ollama mock)', () => {
       expect(result.amount).toBe(0);
       expect(result.currency).toBe('EUR');
     });
+  });
+});
+
+// ─── Suite: callLlm via OpenAI ───────────────────────────────────────────────
+
+describe('AiEngineService — OpenAI path', () => {
+  let service: AiEngineService;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    getFeatures().AI_ENGINE = true;
+    process.env.OPENAI_API_KEY = 'sk-test-key';
+    service = await buildService();
+  });
+
+  afterEach(() => {
+    delete process.env.OPENAI_API_KEY;
+  });
+
+  it('usa OpenAI cuando OPENAI_API_KEY está configurado', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: () => Promise.resolve({
+        choices: [{ message: { content: JSON.stringify({ verdict: 'CLEAN', confidence: 0.99, reason: 'ok' }) } }],
+      }),
+    });
+
+    const result = await service.analyzeAbuse('t1', {
+      subject: 'hello', body: 'world', fromEmail: 'a@b.com', ip: '1.2.3.4',
+    });
+
+    expect(result.verdict).toBe('CLEAN');
+    // Verifica que se llamó a la URL de OpenAI
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://api.openai.com/v1/chat/completions',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('lanza error cuando la respuesta de OpenAI no es ok', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 429,
+    });
+
+    await expect(
+      service.analyzeAbuse('t1', { subject: 's', body: 'b', fromEmail: 'x@y.com', ip: '1.1.1.1' }),
+    ).rejects.toThrow('OpenAI error: 429');
+  });
+
+  it('retorna CLEAN cuando choices[0].message.content es undefined (rama ?? "")', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: () => Promise.resolve({ choices: [{ message: {} }] }),
+    });
+    const result = await service.analyzeAbuse('t1', { subject: 's', body: 'b', fromEmail: 'a@b.com', ip: '1.1.1.1' });
+    // content undefined → ?? '' → parse falla → verdict CLEAN
+    expect(result.verdict).toBe('CLEAN');
+  });
+});
+
+// ─── Suite: errores de Ollama ─────────────────────────────────────────────────
+
+describe('AiEngineService — Ollama error paths', () => {
+  let service: AiEngineService;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    getFeatures().AI_ENGINE = true;
+    service = await buildService();
+  });
+
+  it('lanza error cuando Ollama devuelve !res.ok', async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 503 });
+
+    await expect(
+      service.analyzeAbuse('t1', { subject: 's', body: 'b', fromEmail: 'a@b.com', ip: '1.2.3.4' }),
+    ).rejects.toThrow('Ollama error: 503');
+  });
+});
+
+// ─── Suite: refreshEmbeddings ─────────────────────────────────────────────────
+
+describe('AiEngineService — refreshEmbeddings()', () => {
+  it('no hace nada cuando AI_ENGINE está desactivado', async () => {
+    jest.clearAllMocks();
+    getFeatures().AI_ENGINE = false;
+    const svc = await buildService();
+
+    await expect(svc.refreshEmbeddings()).resolves.toBeUndefined();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('ejecuta sin error cuando AI_ENGINE está activado', async () => {
+    jest.clearAllMocks();
+    getFeatures().AI_ENGINE = true;
+    const svc = await buildService();
+
+    await expect(svc.refreshEmbeddings()).resolves.toBeUndefined();
   });
 });

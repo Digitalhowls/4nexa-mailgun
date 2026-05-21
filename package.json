@@ -14,7 +14,15 @@
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
-    "db:seed": "turbo run db:seed"
+    "db:seed": "turbo run db:seed",
+    "qa:scan": "pnpm --filter @4nexa/qa scan",
+    "qa:api": "pnpm --filter @4nexa/qa api",
+    "qa:e2e": "pnpm --filter @4nexa/qa e2e",
+    "qa:security": "pnpm --filter @4nexa/qa security",
+    "qa:perf": "pnpm --filter @4nexa/qa perf",
+    "qa:report": "pnpm --filter @4nexa/qa report",
+    "qa:all": "pnpm --filter @4nexa/qa all",
+    "qa:all:ci": "pnpm --filter @4nexa/qa all:ci"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

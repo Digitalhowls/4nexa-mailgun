@@ -142,6 +142,15 @@ describe('NodesController (HTTP)', () => {
     expect(res.body).toMatchObject({ success: true, data: { maintenance: true } });
   });
 
+  it('POST /nodes/:id/maintenance → 200 con maintenance false (rama else)', async () => {
+    const res = await request(app.getHttpServer() as Server)
+      .post(`/nodes/${NODE_ID}/maintenance`)
+      .send({ maintenance: false })
+      .expect(200);
+
+    expect(res.body).toMatchObject({ success: true });
+  });
+
   it('POST /nodes/:id/agent-ping → 200', async () => {
     const res = await request(app.getHttpServer() as Server)
       .post(`/nodes/${NODE_ID}/agent-ping`)

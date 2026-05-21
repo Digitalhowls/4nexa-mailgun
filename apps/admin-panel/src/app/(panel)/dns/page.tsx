@@ -35,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { dnsOrchestrationApi, type CreateDnsProviderPayload, type DnsProviderType } from '@/lib/api/dns-orchestration.api';
+import { dnsOrchestrationApi, type CreateDnsProviderPayload, type DnsProviderType, type DnsStatus } from '@/lib/api/dns-orchestration.api';
 import { domainsApi } from '@/lib/api/domains.api';
 import { toast } from '@/components/ui/use-toast';
 import { getErrorMessage, formatDate } from '@/lib/utils';
@@ -68,7 +68,7 @@ export default function DnsPage() {
   const queryClient = useQueryClient();
   const [providerDialogOpen, setProviderDialogOpen] = useState(false);
   const [selectedDomainId, setSelectedDomainId] = useState<string>('');
-  const [dnsStatusData, setDnsStatusData] = useState<Record<string, unknown> | null>(null);
+  const [dnsStatusData, setDnsStatusData] = useState<DnsStatus | null>(null);
 
   const { data: providers, isLoading: loadingProviders } = useQuery({
     queryKey: ['dns-providers'],
@@ -121,7 +121,7 @@ export default function DnsPage() {
 
   const statusMutation = useMutation({
     mutationFn: (domainId: string) => dnsOrchestrationApi.getDomainStatus(domainId),
-    onSuccess: (data) => setDnsStatusData(data as unknown as Record<string, unknown>),
+    onSuccess: (data) => setDnsStatusData(data),
     onError: (err) => toast({ title: 'Error', description: getErrorMessage(err), variant: 'destructive' }),
   });
 
@@ -253,7 +253,7 @@ export default function DnsPage() {
               <div className="grid grid-cols-2 gap-3">
                 {['mx', 'spf', 'dkim', 'dmarc'].map((rec) => (
                   <div key={rec} className="flex items-center gap-2">
-                    <DnsCheck valid={Boolean((dnsStatusData as Record<string, unknown>)[rec])} />
+                    <DnsCheck valid={Boolean((dnsStatusData as unknown as Record<string, unknown>)[rec])} />
                     <span className="text-sm font-medium uppercase">{rec}</span>
                   </div>
                 ))}

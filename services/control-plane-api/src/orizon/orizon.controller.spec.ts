@@ -45,6 +45,17 @@ describe('OrizonController', () => {
   afterAll(() => app.close());
   beforeEach(() => jest.clearAllMocks());
 
+  it('POST /orizon/sync con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const savedTenantId = adminUser.tenantId;
+    (adminUser as any).tenantId = null;
+    try {
+      await request(app.getHttpServer() as Server)
+        .post('/orizon/sync');
+    } finally {
+      (adminUser as any).tenantId = savedTenantId;
+    }
+  });
+
   it('POST /orizon/sync → 201', async () => {
     const res = await request(app.getHttpServer() as Server)
       .post('/orizon/sync');
@@ -69,5 +80,14 @@ describe('OrizonController', () => {
       .set('x-4nexa-signature', 'bad-sig')
       .send({ event: 'test' });
     expect(res.status).toBe(400);
+  });
+
+  it('POST /orizon/webhook sin header signature → usa string vacío (rama ?? \'\')', async () => {
+    mockService.verifyWebhookSignature.mockReturnValueOnce(false);
+    const res = await request(app.getHttpServer() as Server)
+      .post('/orizon/webhook')
+      .send({ event: 'test' });
+    expect(res.status).toBe(400);
+    expect(mockService.verifyWebhookSignature).toHaveBeenCalledWith(expect.any(String), '');
   });
 });

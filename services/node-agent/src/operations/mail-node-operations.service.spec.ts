@@ -283,4 +283,547 @@ describe('MailNodeOperationsService', () => {
       expect(resp.error).toBe('restic not found');
     });
   });
+
+  // ─── apply_config → reloadServices ────────────────────────────────────────
+
+  describe('applyConfig() → reloadServices no vacío', () => {
+    it('incluye el servicio en reloadedServices si el reload tiene éxito', async () => {
+      const result = await service.applyConfig({
+        sections: [
+          { service: 'postfix', templateKey: 'virtual_domains', parameters: { virtualDomains: [] } },
+        ],
+        reloadServices: ['postfix'],
+      });
+      expect(result.reloadedServices).toContain('postfix');
+    });
+
+    it('NO incluye el servicio en reloadedServices si el reload falla', async () => {
+      const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+      exec.mockImplementationOnce(
+        (_: string, _o: unknown, cb: (e: Error) => void) => cb(new Error('postfix no disponible')),
+      );
+
+      const result = await service.applyConfig({
+        sections: [],
+        reloadServices: ['dovecot'],
+      });
+      expect(result.reloadedServices).not.toContain('dovecot');
+    });
+  });
+
+  // ─── apply_config → postfix virtual_aliases ────────────────────────────────
+
+  describe('applyConfig() → postfix virtual_aliases', () => {
+    it('escribe el archivo aliases y ejecuta postmap', async () => {
+      const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+
+      await service.applyConfig({
+        sections: [
+          {
+            service: 'postfix',
+            templateKey: 'virtual_aliases',
+            parameters: {
+              virtualAliases: [
+                { source: 'alias@example.com', destination: 'real@example.com' },
+              ],
+            },
+          },
+        ],
+        reloadServices: [],
+      });
+
+      expect(fsMock.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('aliases'),
+        expect.stringContaining('alias@example.com'),
+        'utf8',
+      );
+      expect(exec).toHaveBeenCalledWith(
+        expect.stringContaining('postmap'),
+        expect.any(Object),
+        expect.any(Function),
+      );
+    });
+
+    it('aplica virtual_aliases vacío sin error', async () => {
+      const result = await service.applyConfig({
+        sections: [
+          { service: 'postfix', templateKey: 'virtual_aliases', parameters: { virtualAliases: [] } },
+        ],
+        reloadServices: [],
+      });
+      expect(result.appliedSections).toContain('postfix:virtual_aliases');
+    });
+  });
+
+  // ─── apply_config → postfix templateKey desconocido ───────────────────────
+
+  describe('applyConfig() → postfix templateKey desconocido', () => {
+    it('aplica sin error con templateKey desconocido (default case)', async () => {
+      const result = await service.applyConfig({
+        sections: [
+          {
+            service: 'postfix',
+            templateKey: 'unknown_key_xyz',
+            parameters: {},
+          },
+        ],
+        reloadServices: [],
+      });
+      expect(result.appliedSections).toContain('postfix:unknown_key_xyz');
+    });
+  });
+
+  // ─── apply_config → execPostmap fallo ─────────────────────────────────────
+
+  describe('applyConfig() → execPostmap fallo ignorado', () => {
+    it('continúa aunque postmap falle', async () => {
+      const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+      exec.mockImplementationOnce(
+        (_cmd: string, _opts: unknown, cb: (e: Error) => void) => cb(new Error('postmap not found')),
+      );
+
+      const result = await service.applyConfig({
+        sections: [
+          {
+            service: 'postfix',
+            templateKey: 'virtual_mailboxes',
+            parameters: { virtualMailboxes: [{ address: 'u@x.com', maildir: 'x.com/u/' }] },
+          },
+        ],
+        reloadServices: [],
+      });
+      expect(result.appliedSections).toContain('postfix:virtual_mailboxes');
+    });
+  });
+
+  // ─── apply_config → dovecot templateKey desconocido ───────────────────────
+
+  describe('applyConfig() → dovecot templateKey desconocido', () => {
+    it('aplica sin error con templateKey desconocido (default case dovecot)', async () => {
+      const result = await service.applyConfig({
+        sections: [
+          {
+            service: 'dovecot',
+            templateKey: 'unknown_dovecot_key',
+            parameters: {},
+          },
+        ],
+        reloadServices: [],
+      });
+      expect(result.appliedSections).toContain('dovecot:unknown_dovecot_key');
+    });
+  });
+
+  // ─── apply_config → rspamd dkim_signing ───────────────────────────────────
+
+  describe('applyConfig() → rspamd dkim_signing', () => {
+    it('escribe las claves privadas y el archivo dkim_signing_auto.conf', async () => {
+      const privatePem = '-----BEGIN RSA PRIVATE KEY-----\nFAKEKEY\n-----END RSA PRIVATE KEY-----';
+      const encrypted = encryptDkimKey(privatePem);
+
+      await service.applyConfig({
+        sections: [
+          {
+            service: 'rspamd',
+            templateKey: 'dkim_signing',
+            parameters: {
+              dkimDomains: [
+                { domain: 'example.com', selector: 'mail2024', privateKeyEncrypted: encrypted },
+              ],
+            },
+          },
+        ],
+        reloadServices: [],
+      });
+
+      expect(fsMock.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('mail2024.example.com.key'),
+        privatePem,
+        expect.objectContaining({ mode: 0o600 }),
+      );
+      expect(fsMock.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('dkim_signing_auto.conf'),
+        expect.stringContaining('example.com'),
+        'utf8',
+      );
+    });
+
+    it('aplica rspamd dkim_signing con lista vacía sin error', async () => {
+      const result = await service.applyConfig({
+        sections: [
+          {
+            service: 'rspamd',
+            templateKey: 'dkim_signing',
+            parameters: { dkimDomains: [] },
+          },
+        ],
+        reloadServices: [],
+      });
+      expect(result.appliedSections).toContain('rspamd:dkim_signing');
+    });
+  });
+
+  // ─── apply_config → rspamd templateKey desconocido ────────────────────────
+
+  describe('applyConfig() → rspamd templateKey desconocido', () => {
+    it('aplica sin error con templateKey desconocido', async () => {
+      const result = await service.applyConfig({
+        sections: [
+          {
+            service: 'rspamd',
+            templateKey: 'unknown_rspamd_key',
+            parameters: {},
+          },
+        ],
+        reloadServices: [],
+      });
+      expect(result.appliedSections).toContain('rspamd:unknown_rspamd_key');
+    });
+  });
+
+  // ─── healthCheck → deep: true ─────────────────────────────────────────────
+
+  describe('healthCheck() → deep: true', () => {
+    it('ejecuta df y retorna diskFreeBytes y diskUsedPercent reales', async () => {
+      const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+      // docker inspect × 3 servicios + df × 1
+      exec
+        .mockImplementationOnce((_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+          cb(null, { stdout: '1234' }),
+        )
+        .mockImplementationOnce((_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+          cb(null, { stdout: '5678' }),
+        )
+        .mockImplementationOnce((_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+          cb(null, { stdout: '9012' }),
+        )
+        .mockImplementationOnce((_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+          cb(null, { stdout: '5368709120 45%' }),
+        );
+
+      const result = await service.healthCheck({ deep: true });
+      expect(result.diskUsedPercent).toBe(45);
+      expect(result.diskFreeBytes).toBe(5368709120);
+    });
+
+    it('usa freemem si df falla en modo deep', async () => {
+      const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+      // 3 docker inspect OK + df falla
+      exec
+        .mockImplementationOnce((_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+          cb(null, { stdout: '111' }),
+        )
+        .mockImplementationOnce((_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+          cb(null, { stdout: '222' }),
+        )
+        .mockImplementationOnce((_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+          cb(null, { stdout: '333' }),
+        )
+        .mockImplementationOnce((_: string, _o: unknown, cb: (e: Error) => void) =>
+          cb(new Error('df not found')),
+        );
+
+      const result = await service.healthCheck({ deep: true });
+      expect(result.diskFreeBytes).toBeGreaterThan(0);
+    });
+  });
+
+  // ─── healthCheck → getServiceHealth catch ─────────────────────────────────
+
+  describe('healthCheck() → getServiceHealth fallo', () => {
+    it('retorna running: false si docker inspect falla', async () => {
+      const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+      exec.mockImplementation(
+        (_cmd: string, _opts: unknown, cb: (e: Error) => void) => cb(new Error('docker not available')),
+      );
+
+      const result = await service.healthCheck({ deep: false });
+      expect(result.services.every((s) => s.running === false)).toBe(true);
+      expect(result.overallStatus).toBe('unhealthy');
+    });
+  });
+
+  // ─── backupExecute ─────────────────────────────────────────────────────────
+
+  describe('backupExecute()', () => {
+    it('ejecuta backup de config y retorna snapshotId y sizeBytes', async () => {
+      const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+      exec.mockImplementationOnce(
+        (_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+          cb(null, { stdout: '{"total_bytes_processed":2048}' }),
+      );
+
+      const result = await service.backupExecute({
+        type: 'config',
+        targetPath: '/backups/test',
+      });
+
+      expect(result.snapshotId).toBeTruthy();
+      expect(result.type).toBe('config');
+      expect(result.sizeBytes).toBe(2048);
+      expect(result.storagePath).toBe('/backups/test');
+      expect(result.durationMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('ejecuta backup de mailboxes (type: mailbox)', async () => {
+      const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+      exec.mockImplementationOnce(
+        (_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+          cb(null, { stdout: '{"total_bytes_processed":4096}' }),
+      );
+
+      const result = await service.backupExecute({ type: 'mailboxes' });
+      expect(result.type).toBe('mailboxes');
+      expect(result.sizeBytes).toBe(4096);
+    });
+
+    it('retorna sizeBytes 0 si restic falla', async () => {
+      const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+      exec.mockImplementationOnce(
+        (_: string, _o: unknown, cb: (e: Error) => void) => cb(new Error('restic not found')),
+      );
+
+      const result = await service.backupExecute({ type: 'config' });
+      expect(result.sizeBytes).toBe(0);
+    });
+
+    it('usa targetPath por defecto si no se especifica', async () => {
+      const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+      exec.mockImplementationOnce(
+        (_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+          cb(null, { stdout: '{"total_bytes_processed":0}' }),
+      );
+
+      const result = await service.backupExecute({ type: 'config' });
+      expect(result.storagePath).toContain('backups');
+    });
+  });
+
+  // ─── metricsReport ────────────────────────────────────────────────────────
+
+  describe('metricsReport()', () => {
+    it('retorna métricas de sistema con nodeId correcto', async () => {
+      const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+      // parsePostfixMetrics se ejecuta PRIMERO (docker logs), luego df
+      exec
+        .mockImplementationOnce(
+          (_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+            cb(null, {
+              stdout: [
+                'Jun 01 10:00:00 host postfix/smtp[1]: ABC: status=sent',
+                'Jun 01 10:00:01 host postfix/smtp[2]: DEF: status=deferred',
+                'Jun 01 10:00:02 host postfix/smtp[3]: GHI: status=bounced',
+                'Jun 01 10:00:03 host postfix/smtp[4]: JKL: NOQUEUE: reject',
+                'Jun 01 10:00:04 host postfix/smtp[5]: MNO: message-id=<id@host> from=<sender@x.com>',
+              ].join('\n'),
+            }),
+        )
+        .mockImplementationOnce(
+          (_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+            cb(null, { stdout: '1073741824 10737418240' }),
+        );
+
+      const result = await service.metricsReport({});
+      expect(result.nodeId).toBe(NODE_ID);
+      expect(result.smtp).toBeDefined();
+      expect(result.system.memTotalMb).toBeGreaterThan(0);
+    });
+
+    it('retorna diskUsedBytes 0 si df falla', async () => {
+      const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+      exec
+        .mockImplementationOnce(
+          (_: string, _o: unknown, cb: (e: Error) => void) => cb(new Error('logs unavailable')),
+        )
+        .mockImplementationOnce(
+          (_: string, _o: unknown, cb: (e: Error) => void) => cb(new Error('df unavailable')),
+        );
+
+      const result = await service.metricsReport({});
+      expect(result.system.diskUsedBytes).toBe(0);
+    });
+  });
+
+  // ─── queueStats ───────────────────────────────────────────────────────────
+
+  describe('queueStats()', () => {
+    it('parsea la salida de mailq y cuenta cola activa y diferida', async () => {
+      const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+      const mailqOutput = [
+        'Mail queue is empty',
+        'A1B2C3D4E5F 1234 Fri Jan  1 00:00:00  sender@example.com',
+        'B2C3D4E5F6A  456 Fri Jan  1 00:00:00  (connect to) deferred@example.com',
+        'C3D4E5F6A7B  789 Fri Jan  1 00:00:00  (deferred) hold@example.com',
+      ].join('\n');
+      exec.mockImplementationOnce(
+        (_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+          cb(null, { stdout: mailqOutput }),
+      );
+
+      const result = await service.queueStats({});
+      expect(result.nodeId).toBe(NODE_ID);
+      expect(result.activeQueue).toBeGreaterThanOrEqual(0);
+      expect(result.deferredQueue).toBeGreaterThanOrEqual(0);
+    });
+
+    it('retorna colas en 0 si mailq falla', async () => {
+      const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+      exec.mockImplementationOnce(
+        (_: string, _o: unknown, cb: (e: Error) => void) => cb(new Error('mailq not found')),
+      );
+
+      const result = await service.queueStats({});
+      expect(result.activeQueue).toBe(0);
+      expect(result.deferredQueue).toBe(0);
+    });
+  });
+});
+
+// ─── Suite modo native ────────────────────────────────────────────────────────
+
+describe('MailNodeOperationsService (mode: native)', () => {
+  let nativeService: MailNodeOperationsService;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    // Restaurar la implementación por defecto (podría haber sido sobreescrita por tests anteriores)
+    const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+    exec.mockImplementation(
+      (_cmd: string, _opts: unknown, cb: (e: null, r: { stdout: string; stderr: string }) => void) =>
+        cb(null, { stdout: '', stderr: '' }),
+    );
+
+    const nativeConfig = {
+      get: (key: string) => {
+        const map: Record<string, unknown> = {
+          AGENT_NODE_ID: 'native-node-001',
+          AGENT_MODE: 'native',
+          AGENT_JWT_SECRET: 'test-secret-32-chars-minimum-ok!!',
+          AGENT_DKIM_ENCRYPTION_KEY: DKIM_KEY,
+          AGENT_POSTFIX_VIRTUAL_DIR: '/tmp/test/postfix/virtual',
+          AGENT_DOVECOT_USERS_FILE: '/tmp/test/dovecot/users.conf',
+          AGENT_RSPAMD_DKIM_DIR: '/tmp/test/rspamd/dkim',
+          AGENT_DOCKER_POSTFIX_CONTAINER: '',
+          AGENT_DOCKER_DOVECOT_CONTAINER: '',
+          AGENT_DOCKER_RSPAMD_CONTAINER: '',
+          LOG_LEVEL: 'error',
+        };
+        return map[key];
+      },
+    } as unknown as ConfigService;
+
+    const module = await Test.createTestingModule({
+      providers: [
+        MailNodeOperationsService,
+        { provide: ConfigService, useValue: nativeConfig },
+      ],
+    }).compile();
+
+    nativeService = module.get(MailNodeOperationsService);
+  });
+
+  it('reloadService usa comando nativo (sin docker exec)', async () => {
+    const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+
+    const result = await nativeService.reloadService({ service: 'postfix' });
+    expect(result.status).toBe('reloaded');
+    expect(exec).toHaveBeenCalledWith(
+      'postfix reload',
+      expect.any(Object),
+      expect.any(Function),
+    );
+  });
+
+  it('reloadService native: dovecot usa doveadm reload', async () => {
+    const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+
+    const result = await nativeService.reloadService({ service: 'dovecot' });
+    expect(result.status).toBe('reloaded');
+    expect(exec).toHaveBeenCalledWith(
+      'doveadm reload',
+      expect.any(Object),
+      expect.any(Function),
+    );
+  });
+
+  it('reloadService native: rspamd usa rspamd reload', async () => {
+    const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+
+    const result = await nativeService.reloadService({ service: 'rspamd' });
+    expect(result.status).toBe('reloaded');
+    expect(exec).toHaveBeenCalledWith(
+      'rspamd reload',
+      expect.any(Object),
+      expect.any(Function),
+    );
+  });
+
+  it('healthCheck native usa pgrep en lugar de docker inspect', async () => {
+    const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+    exec.mockImplementation(
+      (_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+        cb(null, { stdout: '1234' }),
+    );
+
+    const result = await nativeService.healthCheck({ deep: false });
+    const postfixCall = (exec as jest.Mock).mock.calls.find(
+      (c: string[]) => c[0]?.includes('pgrep') && c[0]?.includes('postfix'),
+    );
+    expect(postfixCall).toBeTruthy();
+    expect(result.services.length).toBe(3);
+  });
+
+  it('backupExecute native usa restic directo', async () => {
+    const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+    exec.mockImplementationOnce(
+      (_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+        cb(null, { stdout: '{"total_bytes_processed":512}' }),
+    );
+
+    const result = await nativeService.backupExecute({ type: 'config', targetPath: '/backups/native' });
+    expect(result.sizeBytes).toBe(512);
+    const cmd = (exec as jest.Mock).mock.calls[0]?.[0] as string;
+    expect(cmd).not.toContain('docker');
+    expect(cmd).toContain('restic');
+  });
+
+  it('queueStats native usa mailq directo', async () => {
+    const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+    exec.mockImplementationOnce(
+      (_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+        cb(null, { stdout: 'Mail queue is empty' }),
+    );
+
+    const result = await nativeService.queueStats({});
+    const cmd = (exec as jest.Mock).mock.calls[0]?.[0] as string;
+    expect(cmd).not.toContain('docker');
+    expect(result.nodeId).toBe('native-node-001');
+  });
+
+  it('metricsReport native usa journalctl en lugar de docker logs', async () => {
+    const { exec } = jest.requireMock<{ exec: jest.Mock }>('child_process');
+    exec
+      .mockImplementationOnce(
+        (_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+          cb(null, { stdout: '2147483648 21474836480' }),
+      )
+      .mockImplementationOnce(
+        (_: string, _o: unknown, cb: (e: null, r: { stdout: string }) => void) =>
+          cb(null, {
+            stdout: [
+              'Jun 01 10:00:00 host postfix/smtp[1]: ABC: status=sent',
+              'Jun 01 10:00:01 host postfix/smtp[2]: DEF: status=bounced',
+              'Jun 01 10:00:02 host postfix/smtp[3]: GHI: NOQUEUE: reject',
+              'Jun 01 10:00:03 host postfix/smtp[4]: JKL: message-id=<id@host> from=<sender@x.com>',
+            ].join('\n'),
+          }),
+      );
+
+    const result = await nativeService.metricsReport({});
+    expect(result.nodeId).toBe('native-node-001');
+    expect(result.smtp.sentTotal).toBeGreaterThanOrEqual(0);
+    const logCmd = (exec as jest.Mock).mock.calls[1]?.[0] as string;
+    expect(logCmd).not.toContain('docker logs');
+  });
 });

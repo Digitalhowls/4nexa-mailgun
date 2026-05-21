@@ -151,4 +151,69 @@ describe('AliasesService', () => {
       await expect(svc.remove('no-existe')).rejects.toThrow(NotFoundException);
     });
   });
+
+  // ─── Branches adicionales ─────────────────────────────────────────────────
+
+  describe('findAll() — filtros opcionales de domainId y active', () => {
+    it('aplica filtro de active=true en findAll', async () => {
+      const prisma = makePrisma();
+      const svc = new AliasesService(prisma);
+      await svc.findAll({ tenantId: TENANT_ID, active: true, page: 1, pageSize: 10 });
+
+      expect((prisma as any).alias.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ tenantId: TENANT_ID, active: true }),
+        }),
+      );
+    });
+
+    it('aplica filtros de domainId sin active', async () => {
+      const prisma = makePrisma();
+      const svc = new AliasesService(prisma);
+      await svc.findAll({ domainId: DOMAIN_ID, page: 1, pageSize: 10 });
+
+      expect((prisma as any).alias.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ domainId: DOMAIN_ID }),
+        }),
+      );
+    });
+  });
+
+  describe('create() — branch active ?? true', () => {
+    it('usa active=true por defecto cuando se especifica explícitamente', async () => {
+      const prisma = makePrisma();
+      const svc = new AliasesService(prisma);
+      await svc.create({
+        tenantId: TENANT_ID,
+        domainId: DOMAIN_ID,
+        source: 'info@empresa.com',
+        destination: 'admin@empresa.com',
+        active: true,
+      });
+
+      expect((prisma as any).alias.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ active: true }),
+        }),
+      );
+    });
+
+    it('usa active=true por defecto cuando no se especifica active (cubre ?? true en línea 44)', async () => {
+      const prisma = makePrisma();
+      const svc = new AliasesService(prisma);
+      await svc.create({
+        tenantId: TENANT_ID,
+        domainId: DOMAIN_ID,
+        source: 'info@empresa.com',
+        destination: 'admin@empresa.com',
+      } as any);
+
+      expect((prisma as any).alias.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ active: true }),
+        }),
+      );
+    });
+  });
 });

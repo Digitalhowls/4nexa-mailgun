@@ -50,4 +50,17 @@ describe('WebmailController (HTTP)', () => {
 
     expect(res.body).toMatchObject({ success: true, data: { token: 'sso-token-123' } });
   });
+
+  it('POST /auth/webmail-token con tenantId null → usa string vacío (rama ?? "")', async () => {
+    const savedTenantId = tenantUser.tenantId;
+    (tenantUser as any).tenantId = null;
+    try {
+      const res = await request(app.getHttpServer() as Server)
+        .post('/auth/webmail-token')
+        .expect(201);
+      expect(res.body.success).toBe(true);
+    } finally {
+      (tenantUser as any).tenantId = savedTenantId;
+    }
+  });
 });
