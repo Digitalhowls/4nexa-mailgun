@@ -92,7 +92,7 @@ export class NodeAgentClient {
       },
       {
         secret: this.jwtSecret,
-        expiresIn: this.jwtExpiresIn,
+        expiresIn: this.jwtExpiresIn as never,
       },
     );
 
