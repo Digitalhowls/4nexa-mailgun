@@ -301,7 +301,7 @@ export default function DisasterRecoveryPage() {
           <DialogHeader>
             <DialogTitle>Simular escenario DR</DialogTitle>
             <DialogDescription>
-              Por defecto en modo dry-run. Activa "Ejecutar en vivo" solo si estás seguro.
+              Por defecto en modo dry-run. Activa &quot;Ejecutar en vivo&quot; solo si estás seguro.
             </DialogDescription>
           </DialogHeader>
           <form
