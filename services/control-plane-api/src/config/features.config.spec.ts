@@ -15,7 +15,7 @@ describe('FEATURES feature flags', () => {
   it('todos los flags son false cuando no hay variables de entorno', () => {
     let features: Record<string, boolean>;
     jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       features = (require('./features.config') as { FEATURES: Record<string, boolean> }).FEATURES;
     });
     expect(features!['AI_ENGINE']).toBe(false);
@@ -32,7 +32,7 @@ describe('FEATURES feature flags', () => {
     process.env['FEATURE_AI'] = 'true';
     let features: Record<string, boolean>;
     jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       features = (require('./features.config') as { FEATURES: Record<string, boolean> }).FEATURES;
     });
     expect(features!['AI_ENGINE']).toBe(true);
@@ -42,7 +42,7 @@ describe('FEATURES feature flags', () => {
     process.env['FEATURE_DNS_ORCH'] = 'true';
     let features: Record<string, boolean>;
     jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       features = (require('./features.config') as { FEATURES: Record<string, boolean> }).FEATURES;
     });
     expect(features!['DNS_ORCHESTRATION']).toBe(true);
@@ -53,7 +53,7 @@ describe('FEATURES feature flags', () => {
     process.env['FEATURE_BIMI'] = 'yes';
     let features: Record<string, boolean>;
     jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       features = (require('./features.config') as { FEATURES: Record<string, boolean> }).FEATURES;
     });
     expect(features!['WEBMAIL']).toBe(false);
@@ -66,7 +66,7 @@ describe('FEATURES feature flags', () => {
     process.env['FEATURE_ORIZON'] = 'true';
     let features: Record<string, boolean>;
     jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       features = (require('./features.config') as { FEATURES: Record<string, boolean> }).FEATURES;
     });
     expect(features!['GROUPWARE']).toBe(true);

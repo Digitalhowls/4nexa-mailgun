@@ -74,9 +74,9 @@ describe('generateDkimKeyPair()', () => {
   });
 
   it('propaga error cuando crypto.generateKeyPair llama callback con err (cubre línea 136)', async () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const cryptoMod = require('crypto');
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+     
     const spy = (jest.spyOn(cryptoMod as any, 'generateKeyPair') as jest.SpyInstance<any, any[]>)
       .mockImplementationOnce((...args: any[]) => {
         (args[2] as (err: Error | null, pub: any, priv: any) => void)(

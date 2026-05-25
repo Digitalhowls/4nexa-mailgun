@@ -63,7 +63,7 @@ export class AgentJwtGuard implements CanActivate {
     );
 
     if (mtlsEnabled) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const socket = (req.raw as any)?.socket;
       const peerCert = socket?.getPeerCertificate?.() as { subject?: { CN?: string } } | undefined;
 
