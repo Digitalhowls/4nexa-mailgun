@@ -1,5 +1,5 @@
 # ─── Stage 1: Dependencies ────────────────────────────────────────────────────
-FROM node:18-alpine AS deps
+FROM node:20-alpine AS deps
 WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@9 --activate
@@ -12,7 +12,7 @@ COPY apps/customer-panel/package.json ./apps/customer-panel/
 RUN pnpm install --frozen-lockfile --filter @4nexa/customer-panel... --prod=false
 
 # ─── Stage 2: Builder ────────────────────────────────────────────────────────
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@9 --activate
@@ -36,7 +36,7 @@ WORKDIR /app/apps/customer-panel
 RUN NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} pnpm build
 
 # ─── Stage 3: Production ──────────────────────────────────────────────────────
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
 WORKDIR /app
 
 RUN apk add --no-cache dumb-init

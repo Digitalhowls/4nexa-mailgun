@@ -1,5 +1,5 @@
 # ─── Stage 1: Dependencies ────────────────────────────────────────────────────
-FROM node:18-alpine AS deps
+FROM node:20-alpine AS deps
 WORKDIR /app
 
 # Instalar pnpm
@@ -9,12 +9,14 @@ RUN corepack enable && corepack prepare pnpm@9 --activate
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/types/package.json ./packages/types/
 COPY packages/validators/package.json ./packages/validators/
+COPY packages/config-engine/package.json ./packages/config-engine/
+COPY packages/logger/package.json ./packages/logger/
 COPY services/control-plane-api/package.json ./services/control-plane-api/
 
 RUN pnpm install --frozen-lockfile --filter @4nexa/control-plane-api... --prod=false
 
 # ─── Stage 2: Build ───────────────────────────────────────────────────────────
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@9 --activate
@@ -26,11 +28,14 @@ COPY services/control-plane-api/ ./services/control-plane-api/
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages/types/node_modules ./packages/types/node_modules
 COPY --from=deps /app/packages/validators/node_modules ./packages/validators/node_modules
+COPY --from=deps /app/packages/config-engine/node_modules ./packages/config-engine/node_modules
+COPY --from=deps /app/packages/logger/node_modules ./packages/logger/node_modules
 COPY --from=deps /app/services/control-plane-api/node_modules ./services/control-plane-api/node_modules
 
 # Build shared packages
 RUN pnpm --filter @4nexa/types build
 RUN pnpm --filter @4nexa/validators build
+RUN pnpm --filter @4nexa/logger build
 
 # Generate Prisma client
 RUN pnpm --filter @4nexa/control-plane-api db:generate
@@ -42,7 +47,7 @@ ARG BUILD_SHA=unknown
 RUN echo "BUILD_SHA=${BUILD_SHA}" > /app/services/control-plane-api/.build-info
 
 # ─── Stage 3: Production ──────────────────────────────────────────────────────
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
 WORKDIR /app
 
 # Instalar dependencias de sistema mínimas

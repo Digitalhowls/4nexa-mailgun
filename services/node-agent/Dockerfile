@@ -1,5 +1,5 @@
 # ─── Stage 1: Dependencies ────────────────────────────────────────────────────
-FROM node:18-alpine AS deps
+FROM node:20-alpine AS deps
 WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@9 --activate
@@ -13,7 +13,7 @@ COPY services/node-agent/package.json ./services/node-agent/
 RUN pnpm install --frozen-lockfile --filter @4nexa/node-agent... --prod=false
 
 # ─── Stage 2: Build ───────────────────────────────────────────────────────────
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@9 --activate
@@ -38,7 +38,7 @@ ARG BUILD_SHA=unknown
 RUN echo "BUILD_SHA=${BUILD_SHA}" > /app/services/node-agent/.build-info
 
 # ─── Stage 3: Production ──────────────────────────────────────────────────────
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
 WORKDIR /app
 
 # dumb-init para señales correctas + herramientas mínimas de diagnóstico
