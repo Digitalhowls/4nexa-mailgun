@@ -68,7 +68,7 @@ jobs:
           def _auth():
               t = int(time.time())
               km = hashlib.md5(API_KEY.encode()).hexdigest()
-              tk = hashlib.md5(f"{t}{km}".encode()).decode()
+              tk = hashlib.md5(f"{t}{km}".encode()).hexdigest()
               return {"request_time": t, "request_token": tk}
 
           def api(endpoint, data=None):
@@ -239,7 +239,7 @@ jobs:
           def _auth():
               t = int(time.time())
               km = hashlib.md5(API_KEY.encode()).hexdigest()
-              tk = hashlib.md5(f"{t}{km}".encode()).decode()
+              tk = hashlib.md5(f"{t}{km}".encode()).hexdigest()
               return {"request_time": t, "request_token": tk}
 
           def api(endpoint, data=None):
