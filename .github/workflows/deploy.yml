@@ -271,7 +271,7 @@ jobs:
               f"PREV_SHA=\"{prev_sha}\"\n"
               f"REPO=\"digitalhowls/4nexa-mailgun\"\n"
               f"for SVC in control-plane-api admin-panel customer-panel; do\n"
-              f"  docker pull ghcr.io/${{REPO}}/${{SVC}}:${{PREV_SHA}} >> {OUTPUT_PATH} 2>&1 || true\n"
+              f"  docker pull ghcr.io/$REPO/$SVC:$PREV_SHA >> {OUTPUT_PATH} 2>&1 || true\n"
               f"done\n"
               f"docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate control-plane-api admin-panel customer-panel >> {OUTPUT_PATH} 2>&1\n"
               f"echo 'Rollback OK' >> {OUTPUT_PATH}\n"
