@@ -46,7 +46,6 @@ docker/nginx
 # Herramientas de desarrollo
 .eslintrc*
 .prettierrc*
-tsconfig*.json
 jest.config*
 vitest.config*
 
