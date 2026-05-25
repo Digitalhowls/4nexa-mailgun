@@ -65,6 +65,9 @@ jobs:
       - name: Build packages
         run: pnpm turbo run build --filter=@4nexa/types --filter=@4nexa/validators
 
+      - name: Generate Prisma client
+        run: pnpm --filter @4nexa/control-plane-api db:generate
+
       - name: Typecheck
         run: pnpm turbo run typecheck
 
@@ -88,8 +91,11 @@ jobs:
       - name: Build packages
         run: pnpm turbo run build --filter=@4nexa/types --filter=@4nexa/validators
 
+      - name: Generate Prisma client
+        run: pnpm --filter @4nexa/control-plane-api db:generate
+
       - name: Run tests
-        run: pnpm turbo run test -- --ci --coverage --passWithNoTests
+        run: pnpm turbo run test
         env:
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
           REDIS_URL: redis://localhost:6379
