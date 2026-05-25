@@ -1,0 +1,193 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Setup Server — Ejecutar UNA SOLA VEZ para preparar el servidor
+# Crea los proxy sites en aaPanel, el directorio de instalación y el .env
+# Trigger: manual (workflow_dispatch)
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Setup Server
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Escribe "setup" para confirmar'
+        required: true
+
+env:
+  PANEL_URL: 'https://admin.digitalhowls.com'
+  INSTALL_DIR: '/opt/4nexa-mailgun'
+  OUTPUT_PATH: '/www/server/cron/ci_mailgun_setup_output.txt'
+
+jobs:
+  setup:
+    name: Preparar servidor
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.confirm == 'setup' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup servidor vía aaPanel cron hijack
+        env:
+          AAPANEL_KEY:       ${{ secrets.AAPANEL_KEY }}
+          AAPANEL_CRON_ID:   ${{ secrets.AAPANEL_MAILGUN_CRON_ID }}
+          AAPANEL_CRON_HASH: ${{ secrets.AAPANEL_MAILGUN_CRON_HASH }}
+          POSTGRES_PASSWORD: ${{ secrets.MAILGUN_POSTGRES_PASSWORD }}
+          REDIS_PASSWORD:    ${{ secrets.MAILGUN_REDIS_PASSWORD }}
+          JWT_ACCESS_SECRET: ${{ secrets.MAILGUN_JWT_ACCESS_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.MAILGUN_JWT_REFRESH_SECRET }}
+          INTERNAL_API_KEY:  ${{ secrets.MAILGUN_INTERNAL_API_KEY }}
+          GHCR_TOKEN:        ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER:         ${{ github.actor }}
+        run: |
+          pip install httpx --quiet
+          python3 - << 'PYEOF'
+          import hashlib, time, os, sys, base64, json
+          import httpx
+
+          PANEL_URL   = os.environ["PANEL_URL"]
+          API_KEY     = os.environ["AAPANEL_KEY"]
+          CRON_ID     = os.environ["AAPANEL_CRON_ID"]
+          CRON_HASH   = os.environ["AAPANEL_CRON_HASH"]
+          SCRIPT_PATH = f"/www/server/cron/{CRON_HASH}"
+          OUTPUT_PATH = os.environ["OUTPUT_PATH"]
+          INSTALL_DIR = os.environ["INSTALL_DIR"]
+
+          def _auth():
+              t = int(time.time())
+              km = hashlib.md5(API_KEY.encode()).hexdigest()
+              tk = hashlib.md5(f"{t}{km}".encode()).hexdigest()
+              return {"request_time": t, "request_token": tk}
+
+          def api(endpoint, data=None):
+              url = f"{PANEL_URL}{endpoint}"
+              payload = {**(data or {}), **_auth()}
+              resp = httpx.Client(verify=False, timeout=60).post(url, data=payload)
+              try:
+                  return resp.json()
+              except:
+                  return {"status": True, "msg": resp.text[:200]}
+
+          # Guardar script original del cron
+          r_orig = api("/files?action=GetFileBody", {"path": SCRIPT_PATH, "encoding": "utf-8"})
+          orig_script = r_orig.get("data", "") or ""
+
+          # Construir el .env de producción
+          env_vars = {
+              "POSTGRES_DB": "mailgun",
+              "POSTGRES_USER": "mailgun",
+              "POSTGRES_PASSWORD": os.environ.get("POSTGRES_PASSWORD", "CHANGE_ME"),
+              "REDIS_PASSWORD": os.environ.get("REDIS_PASSWORD", "CHANGE_ME"),
+              "JWT_ACCESS_SECRET": os.environ.get("JWT_ACCESS_SECRET", "CHANGE_ME"),
+              "JWT_REFRESH_SECRET": os.environ.get("JWT_REFRESH_SECRET", "CHANGE_ME"),
+              "INTERNAL_API_KEY": os.environ.get("INTERNAL_API_KEY", "CHANGE_ME"),
+              "JWT_ACCESS_EXPIRES_IN": "15m",
+              "JWT_REFRESH_EXPIRES_IN": "7d",
+              "API_PORT": "3001",
+              "ADMIN_PORT": "3002",
+              "CUSTOMER_PORT": "3003",
+              "CORS_ORIGINS": "https://admin.mailgun.4nexa.io,https://app.mailgun.4nexa.io",
+              "API_PUBLIC_URL": "https://api.mailgun.4nexa.io/api/v1",
+          }
+          env_content = "\n".join(f'{k}={v}' for k, v in env_vars.items()) + "\n"
+
+          SETUP_SCRIPT = (
+              "#!/bin/bash\n"
+              "set -e\n"
+              "PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin\n"
+              "export PATH\n"
+              f"echo '=== Setup Mailgun Server' $(date -u) '===' > {OUTPUT_PATH}\n"
+              "\n"
+              "# 1. Crear directorio de instalación y repositorio\n"
+              f"mkdir -p {INSTALL_DIR}\n"
+              f"if [ -d {INSTALL_DIR}/.git ]; then\n"
+              f"  cd {INSTALL_DIR} && git pull origin main 2>&1 | tail -5 >> {OUTPUT_PATH}\n"
+              f"else\n"
+              f"  git clone https://github.com/Digitalhowls/4nexa-mailgun.git {INSTALL_DIR} 2>&1 | tail -10 >> {OUTPUT_PATH}\n"
+              f"fi\n"
+              f"echo 'Repo OK' >> {OUTPUT_PATH}\n"
+              "\n"
+              "# 2. Crear .env si no existe\n"
+              f"if [ ! -f {INSTALL_DIR}/.env ]; then\n"
+              f"  cat > {INSTALL_DIR}/.env << 'ENVEOF'\n"
+              f"{env_content}"
+              f"ENVEOF\n"
+              f"  echo '.env creado' >> {OUTPUT_PATH}\n"
+              f"else\n"
+              f"  echo '.env ya existe, no se sobreescribe' >> {OUTPUT_PATH}\n"
+              f"fi\n"
+              "\n"
+              "# 3. Crear proxy sites en aaPanel (Nginx vhosts)\n"
+              "NGINX_SITES_DIR=/www/server/panel/vhost/nginx\n"
+              "\n"
+              "create_proxy_site() {\n"
+              "  local DOMAIN=$1\n"
+              "  local PORT=$2\n"
+              "  local CONF_FILE=\"$NGINX_SITES_DIR/$DOMAIN.conf\"\n"
+              "  if [ -f \"$CONF_FILE\" ]; then\n"
+              "    echo \"Site $DOMAIN ya existe\" >> " + OUTPUT_PATH + "\n"
+              "    return\n"
+              "  fi\n"
+              "  cat > \"$CONF_FILE\" << NGINXEOF\n"
+              "server {\n"
+              "    listen 80;\n"
+              "    server_name $DOMAIN;\n"
+              "    access_log /www/wwwlogs/$DOMAIN.log;\n"
+              "    error_log  /www/wwwlogs/$DOMAIN.error.log;\n"
+              "\n"
+              "    location / {\n"
+              "        proxy_pass http://127.0.0.1:$PORT;\n"
+              "        proxy_http_version 1.1;\n"
+              "        proxy_set_header Upgrade \\$http_upgrade;\n"
+              "        proxy_set_header Connection upgrade;\n"
+              "        proxy_set_header Host \\$host;\n"
+              "        proxy_set_header X-Real-IP \\$remote_addr;\n"
+              "        proxy_set_header X-Forwarded-For \\$proxy_add_x_forwarded_for;\n"
+              "        proxy_set_header X-Forwarded-Proto \\$scheme;\n"
+              "        proxy_read_timeout 300s;\n"
+              "        proxy_connect_timeout 75s;\n"
+              "    }\n"
+              "}\n"
+              "NGINXEOF\n"
+              "  echo \"Site $DOMAIN creado\" >> " + OUTPUT_PATH + "\n"
+              "}\n"
+              "\n"
+              "create_proxy_site api.mailgun.4nexa.io 3001\n"
+              "create_proxy_site admin.mailgun.4nexa.io 3002\n"
+              "create_proxy_site app.mailgun.4nexa.io 3003\n"
+              "\n"
+              "# Recargar nginx\n"
+              "nginx -t 2>&1 >> " + OUTPUT_PATH + " && nginx -s reload 2>&1 >> " + OUTPUT_PATH + " && echo 'Nginx recargado' >> " + OUTPUT_PATH + " || echo 'ERROR nginx reload' >> " + OUTPUT_PATH + "\n"
+              "\n"
+              "echo 'Setup OK' >> " + OUTPUT_PATH + "\n"
+          )
+
+          api("/files?action=SaveFileBody", {"path": SCRIPT_PATH, "data": SETUP_SCRIPT, "encoding": "utf-8"})
+          r_run = api("/crontab?action=StartTask", {"id": CRON_ID})
+          print(f"Setup lanzado: {r_run.get('msg')}")
+
+          # Esperar resultado (máx 5 min)
+          output = ""
+          for i in range(30):
+              time.sleep(10)
+              r_out = api("/files?action=GetFileBody", {"path": OUTPUT_PATH, "encoding": "utf-8"})
+              output = r_out.get("data", "") or ""
+              if "Setup OK" in output or "ERROR" in output:
+                  break
+              if i % 3 == 0:
+                  last = output.split("\n")[-2] if output else "esperando..."
+                  sys.stdout.write(f"  [{(i+1)*10}s] {last}\n")
+                  sys.stdout.flush()
+
+          lines = output.split("\n")
+          print(f"\n=== Setup Output ===\n" + "\n".join(lines[-30:]))
+
+          # Restaurar cron script original
+          api("/files?action=SaveFileBody", {"path": SCRIPT_PATH, "data": orig_script, "encoding": "utf-8"})
+
+          if "Setup OK" not in output:
+              print("ERROR: El setup no completó")
+              sys.exit(1)
+
+          print("Setup completado.")
+          PYEOF
