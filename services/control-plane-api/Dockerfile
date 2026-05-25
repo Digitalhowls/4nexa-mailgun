@@ -65,8 +65,8 @@ COPY --from=builder --chown=appuser:appgroup /app/services/control-plane-api/nod
 COPY --from=builder --chown=appuser:appgroup /app/services/control-plane-api/prisma ./prisma
 COPY --from=builder --chown=appuser:appgroup /app/services/control-plane-api/.build-info ./.build-info
 
-# Prisma client generado
-COPY --from=builder --chown=appuser:appgroup /app/node_modules/.pnpm ./node_modules/.pnpm 2>/dev/null || true
+# pnpm virtual store (requerido para resolver symlinks de node_modules)
+COPY --from=builder --chown=appuser:appgroup /app/node_modules/.pnpm ./node_modules/.pnpm
 
 USER appuser
 

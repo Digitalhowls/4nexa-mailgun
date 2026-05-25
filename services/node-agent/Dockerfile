@@ -55,6 +55,7 @@ ENV AGENT_MODE=native
 
 COPY --from=builder --chown=appuser:appgroup /app/services/node-agent/dist       ./dist
 COPY --from=builder --chown=appuser:appgroup /app/services/node-agent/node_modules ./node_modules
+COPY --from=builder --chown=appuser:appgroup /app/node_modules/.pnpm ./node_modules/.pnpm
 COPY --from=builder --chown=appuser:appgroup /app/services/node-agent/.build-info ./.build-info
 
 USER appuser
