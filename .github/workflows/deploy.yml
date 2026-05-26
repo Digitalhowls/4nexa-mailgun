@@ -113,7 +113,7 @@ jobs:
               f"docker compose -f docker-compose.prod.yml pull control-plane-api admin-panel customer-panel 2>&1 | tail -10 >> {OUTPUT_PATH} || true\n"
               f"echo 'Pull OK' >> {OUTPUT_PATH}\n"
               f"# Levantar postgres y redis primero\n"
-              f"docker compose -f docker-compose.prod.yml up -d postgres redis 2>&1 | tail -5 >> {OUTPUT_PATH}\n"
+              f"docker compose -f docker-compose.prod.yml up -d postgres redis 2>&1 | tail -5 >> {OUTPUT_PATH} || {{ echo 'ERROR: Failed to start postgres/redis' >> {OUTPUT_PATH}; exit 1; }}\n"
               f"echo 'DB/Redis started' >> {OUTPUT_PATH}\n"
               f"# Esperar a que postgres esté listo (max 60s)\n"
               f"for j in $(seq 1 30); do\n"
@@ -123,8 +123,8 @@ jobs:
               f"# Ejecutar migraciones (prisma)\n"
               f"docker compose -f docker-compose.prod.yml run --rm --no-deps control-plane-api sh -c 'node_modules/.bin/prisma migrate deploy' >> {OUTPUT_PATH} 2>&1 || echo 'Migrations skipped' >> {OUTPUT_PATH}\n"
               f"# Levantar servicios de aplicación\n"
-              f"docker compose -f docker-compose.prod.yml up -d --no-deps control-plane-api >> {OUTPUT_PATH} 2>&1\n"
-              f"docker compose -f docker-compose.prod.yml up -d --no-deps admin-panel customer-panel >> {OUTPUT_PATH} 2>&1\n"
+              f"docker compose -f docker-compose.prod.yml up -d --no-deps control-plane-api >> {OUTPUT_PATH} 2>&1 || {{ echo 'ERROR: Failed to start control-plane-api' >> {OUTPUT_PATH}; exit 1; }}\n"
+              f"docker compose -f docker-compose.prod.yml up -d --no-deps admin-panel customer-panel >> {OUTPUT_PATH} 2>&1 || {{ echo 'ERROR: Failed to start admin/customer panels' >> {OUTPUT_PATH}; exit 1; }}\n"
               f"for i in $(seq 1 18); do\n"
               f"  STATUS=$(docker inspect mailgun_api --format '{{{{.State.Health.Status}}}}' 2>/dev/null || echo unknown)\n"
               f"  echo \"Health check $i/18: $STATUS\" >> {OUTPUT_PATH}\n"
@@ -142,9 +142,9 @@ jobs:
           r_run = api("/crontab?action=StartTask", {"id": CRON_ID})
           print(f"Deploy lanzado: {r_run.get('msg')}")
 
-          # Esperar resultado (máx 15 min)
+          # Esperar resultado (máx 30 min — pull de imágenes puede tomar ~14 min)
           output = ""
-          for i in range(90):
+          for i in range(180):
               time.sleep(10)
               r_out = api("/files?action=GetFileBody", {"path": OUTPUT_PATH, "encoding": "utf-8"})
               output = r_out.get("data", "") or ""
