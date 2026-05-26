@@ -92,7 +92,7 @@ jobs:
           r_orig = api("/files?action=GetFileBody", {"path": SCRIPT_PATH, "encoding": "utf-8"})
           orig_script = r_orig.get("data", "") or ""
 
-          # Script de deploy: pull → migrations → recreate → healthcheck
+          # Script de deploy: pull → stop/rm → postgres/redis up → migrations → recreate → healthcheck
           DEPLOY_SCRIPT = (
               "#!/bin/bash\n"
               "set -e\n"
@@ -100,11 +100,21 @@ jobs:
               "export PATH\n"
               f"echo '=== CI Deploy Mailgun' $(date -u) '===' > {OUTPUT_PATH}\n"
               f"cd {INSTALL_DIR}\n"
+              f"# Limpiar cualquier contenedor atascado del deploy anterior\n"
+              f"docker rm -f mailgun_api mailgun_admin mailgun_customer 2>&1 >> {OUTPUT_PATH} || true\n"
               f"docker compose -f docker-compose.prod.yml pull control-plane-api admin-panel customer-panel 2>&1 | tail -10 >> {OUTPUT_PATH} || true\n"
               f"echo 'Pull OK' >> {OUTPUT_PATH}\n"
+              f"# Asegurar que postgres y redis están corriendo (primer deploy o reinicio)\n"
+              f"docker compose -f docker-compose.prod.yml up -d postgres redis 2>&1 | tail -5 >> {OUTPUT_PATH} || true\n"
+              f"echo 'DB/Redis ready' >> {OUTPUT_PATH}\n"
+              f"sleep 5\n"
+              f"# Detener y eliminar contenedores de app para liberar puertos\n"
+              f"docker stop mailgun_api mailgun_admin mailgun_customer 2>&1 >> {OUTPUT_PATH} || true\n"
+              f"docker rm -f mailgun_api mailgun_admin mailgun_customer 2>&1 >> {OUTPUT_PATH} || true\n"
+              f"sleep 2\n"
               f"docker compose -f docker-compose.prod.yml run --rm --no-deps control-plane-api sh -c 'npx prisma migrate deploy' >> {OUTPUT_PATH} 2>&1 || echo 'Migrations skipped' >> {OUTPUT_PATH}\n"
-              f"docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate control-plane-api >> {OUTPUT_PATH} 2>&1\n"
-              f"docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate admin-panel customer-panel >> {OUTPUT_PATH} 2>&1\n"
+              f"docker compose -f docker-compose.prod.yml up -d --no-deps control-plane-api >> {OUTPUT_PATH} 2>&1\n"
+              f"docker compose -f docker-compose.prod.yml up -d --no-deps admin-panel customer-panel >> {OUTPUT_PATH} 2>&1\n"
               f"for i in $(seq 1 18); do\n"
               f"  STATUS=$(docker inspect mailgun_api --format '{{{{.State.Health.Status}}}}' 2>/dev/null || echo unknown)\n"
               f"  echo \"Health check $i/18: $STATUS\" >> {OUTPUT_PATH}\n"
