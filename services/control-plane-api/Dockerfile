@@ -46,6 +46,16 @@ RUN pnpm --filter @4nexa/control-plane-api build
 ARG BUILD_SHA=unknown
 RUN echo "BUILD_SHA=${BUILD_SHA}" > /app/services/control-plane-api/.build-info
 
+# Crear deploy standalone (resuelve todos los symlinks de pnpm para Docker)
+# pnpm deploy copia node_modules con deps resueltas sin symlinks rotos
+RUN pnpm --filter @4nexa/control-plane-api deploy --prod /standalone
+# Copiar dist compilado y assets al standalone (dist no está en files/gitignore)
+RUN cp -r /app/services/control-plane-api/dist /standalone/dist
+RUN cp -r /app/services/control-plane-api/prisma /standalone/prisma
+RUN cp /app/services/control-plane-api/.build-info /standalone/.build-info
+# Copiar cliente Prisma generado (pnpm deploy --prod omite postinstall scripts)
+RUN cp -r /app/services/control-plane-api/node_modules/.prisma /standalone/node_modules/.prisma 2>/dev/null || true
+
 # ─── Stage 3: Production ──────────────────────────────────────────────────────
 FROM node:20-alpine AS production
 WORKDIR /app
@@ -59,14 +69,11 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Copiar solo lo necesario para producción
-COPY --from=builder --chown=appuser:appgroup /app/services/control-plane-api/dist ./dist
-COPY --from=builder --chown=appuser:appgroup /app/services/control-plane-api/node_modules ./node_modules
-COPY --from=builder --chown=appuser:appgroup /app/services/control-plane-api/prisma ./prisma
-COPY --from=builder --chown=appuser:appgroup /app/services/control-plane-api/.build-info ./.build-info
-
-# pnpm virtual store (requerido para resolver symlinks de node_modules)
-COPY --from=builder --chown=appuser:appgroup /app/node_modules/.pnpm ./node_modules/.pnpm
+# Copiar deploy standalone (node_modules resueltos, sin symlinks rotos de pnpm)
+COPY --from=builder --chown=appuser:appgroup /standalone/node_modules ./node_modules
+COPY --from=builder --chown=appuser:appgroup /standalone/dist ./dist
+COPY --from=builder --chown=appuser:appgroup /standalone/prisma ./prisma
+COPY --from=builder --chown=appuser:appgroup /standalone/.build-info ./.build-info
 
 USER appuser
 
