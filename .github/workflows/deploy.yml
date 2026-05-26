@@ -95,6 +95,13 @@ jobs:
           # Script de deploy: down → pull → up postgres/redis → migrations → up app → healthcheck
           DEPLOY_SCRIPT = (
               "#!/bin/bash\n"
+              "# Lockfile: evitar ejecuciones concurrentes del cron (el cron puede dispararse cada minuto)\n"
+              "LOCK_FILE=/tmp/mailgun_deploy.lock\n"
+              "if [ -f \"$LOCK_FILE\" ]; then\n"
+              "  exit 0\n"
+              "fi\n"
+              "echo $$ > \"$LOCK_FILE\"\n"
+              "trap 'rm -f $LOCK_FILE' EXIT INT TERM\n"
               "set -e\n"
               "PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin\n"
               "export PATH\n"
