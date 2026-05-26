@@ -92,7 +92,7 @@ jobs:
           r_orig = api("/files?action=GetFileBody", {"path": SCRIPT_PATH, "encoding": "utf-8"})
           orig_script = r_orig.get("data", "") or ""
 
-          # Script de deploy: pull → stop/rm → postgres/redis up → migrations → recreate → healthcheck
+          # Script de deploy: down → pull → up postgres/redis → migrations → up app → healthcheck
           DEPLOY_SCRIPT = (
               "#!/bin/bash\n"
               "set -e\n"
@@ -100,19 +100,22 @@ jobs:
               "export PATH\n"
               f"echo '=== CI Deploy Mailgun' $(date -u) '===' > {OUTPUT_PATH}\n"
               f"cd {INSTALL_DIR}\n"
-              f"# Limpiar cualquier contenedor atascado del deploy anterior\n"
-              f"docker rm -f mailgun_api mailgun_admin mailgun_customer 2>&1 >> {OUTPUT_PATH} || true\n"
+              f"# Derribar stack completo: limpia redes/iptables y libera puertos\n"
+              f"docker compose -f docker-compose.prod.yml down --remove-orphans 2>&1 | tail -5 >> {OUTPUT_PATH} || true\n"
+              f"echo 'Stack down OK' >> {OUTPUT_PATH}\n"
               f"docker compose -f docker-compose.prod.yml pull control-plane-api admin-panel customer-panel 2>&1 | tail -10 >> {OUTPUT_PATH} || true\n"
               f"echo 'Pull OK' >> {OUTPUT_PATH}\n"
-              f"# Asegurar que postgres y redis están corriendo (primer deploy o reinicio)\n"
-              f"docker compose -f docker-compose.prod.yml up -d postgres redis 2>&1 | tail -5 >> {OUTPUT_PATH} || true\n"
-              f"echo 'DB/Redis ready' >> {OUTPUT_PATH}\n"
-              f"sleep 5\n"
-              f"# Detener y eliminar contenedores de app para liberar puertos\n"
-              f"docker stop mailgun_api mailgun_admin mailgun_customer 2>&1 >> {OUTPUT_PATH} || true\n"
-              f"docker rm -f mailgun_api mailgun_admin mailgun_customer 2>&1 >> {OUTPUT_PATH} || true\n"
-              f"sleep 2\n"
-              f"docker compose -f docker-compose.prod.yml run --rm --no-deps control-plane-api sh -c 'npx prisma migrate deploy' >> {OUTPUT_PATH} 2>&1 || echo 'Migrations skipped' >> {OUTPUT_PATH}\n"
+              f"# Levantar postgres y redis primero\n"
+              f"docker compose -f docker-compose.prod.yml up -d postgres redis 2>&1 | tail -5 >> {OUTPUT_PATH}\n"
+              f"echo 'DB/Redis started' >> {OUTPUT_PATH}\n"
+              f"# Esperar a que postgres esté listo (max 60s)\n"
+              f"for j in $(seq 1 30); do\n"
+              f"  docker exec mailgun_db pg_isready -U mailgun -q 2>/dev/null && echo 'Postgres ready' >> {OUTPUT_PATH} && break || true\n"
+              f"  sleep 2\n"
+              f"done\n"
+              f"# Ejecutar migraciones (prisma)\n"
+              f"docker compose -f docker-compose.prod.yml run --rm --no-deps control-plane-api sh -c 'node_modules/.bin/prisma migrate deploy' >> {OUTPUT_PATH} 2>&1 || echo 'Migrations skipped' >> {OUTPUT_PATH}\n"
+              f"# Levantar servicios de aplicación\n"
               f"docker compose -f docker-compose.prod.yml up -d --no-deps control-plane-api >> {OUTPUT_PATH} 2>&1\n"
               f"docker compose -f docker-compose.prod.yml up -d --no-deps admin-panel customer-panel >> {OUTPUT_PATH} 2>&1\n"
               f"for i in $(seq 1 18); do\n"
@@ -138,6 +141,12 @@ jobs:
               time.sleep(10)
               r_out = api("/files?action=GetFileBody", {"path": OUTPUT_PATH, "encoding": "utf-8"})
               output = r_out.get("data", "") or ""
+              # Solo procesar si el archivo ya contiene el header del deploy actual
+              if "=== CI Deploy Mailgun" not in output:
+                  if i % 6 == 0:
+                      sys.stdout.write(f"  [{(i+1)*10}s] esperando inicio del cron...\n")
+                      sys.stdout.flush()
+                  continue
               if "Deploy OK" in output or "ERROR:" in output:
                   break
               if i % 6 == 0:
