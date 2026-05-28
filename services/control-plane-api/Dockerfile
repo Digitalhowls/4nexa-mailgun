@@ -35,6 +35,7 @@ COPY --from=deps /app/services/control-plane-api/node_modules ./services/control
 # Build shared packages
 RUN pnpm --filter @4nexa/types build
 RUN pnpm --filter @4nexa/validators build
+RUN pnpm --filter @4nexa/config-engine build
 RUN pnpm --filter @4nexa/logger build
 
 # Generate Prisma client
