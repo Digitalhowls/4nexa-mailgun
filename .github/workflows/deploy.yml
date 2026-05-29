@@ -211,6 +211,7 @@ jobs:
     name: Smoke Tests — Producción
     runs-on: ubuntu-latest
     needs: deploy
+    continue-on-error: true  # DNS/HTTPS pueden no estar configurados aún; no rollbackear por esto
     steps:
       - name: Smoke test — API health
         run: |
@@ -268,8 +269,8 @@ jobs:
   rollback:
     name: Rollback — Producción
     runs-on: ubuntu-latest
-    needs: smoke
-    if: failure()
+    needs: [deploy, smoke]
+    if: needs.deploy.result == 'failure'
     steps:
       - name: Rollback via aaPanel API
         env:
